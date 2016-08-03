@@ -65,6 +65,7 @@ const StreamGroup = React.createClass({
     orgId: React.PropTypes.string.isRequired,
     projectId: React.PropTypes.string.isRequired,
     statsPeriod: React.PropTypes.string.isRequired,
+    statsType: React.PropTypes.string.isRequired,
     canSelect: React.PropTypes.bool
   },
 
@@ -77,7 +78,8 @@ const StreamGroup = React.createClass({
     return {
       canSelect: true,
       id: '',
-      statsPeriod: '24h'
+      statsPeriod: '24h',
+      statsType: 'events'
     };
   },
 
@@ -204,7 +206,7 @@ const StreamGroup = React.createClass({
           <AssigneeSelector id={data.id} />
         </div>
         <div className="col-md-2 hidden-sm hidden-xs event-graph align-right">
-          <GroupChart id={data.id} statsPeriod={this.props.statsPeriod} />
+          <GroupChart id={data.id} statsPeriod={this.props.statsPeriod} statsType={this.props.statsType} />
         </div>
         <div className="col-md-1 col-xs-2 event-count align-right">
           <Count value={data.count} />

@@ -10,6 +10,7 @@ const GroupChart = React.createClass({
   propTypes: {
     id: React.PropTypes.string.isRequired,
     statsPeriod: React.PropTypes.string.isRequired,
+    statsType: React.PropTypes.string.isRequired,
   },
 
   mixins: [
@@ -65,7 +66,7 @@ const GroupChart = React.createClass({
 
     return (
       <LazyLoad>
-        <BarChart points={chartData} className="sparkline" />
+        <BarChart points={chartData} className="sparkline" label={this.props.statsType} />
       </LazyLoad>
     );
   }

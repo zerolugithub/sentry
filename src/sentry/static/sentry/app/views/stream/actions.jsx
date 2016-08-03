@@ -17,8 +17,10 @@ const StreamActions = React.createClass({
     groupIds: React.PropTypes.instanceOf(Array).isRequired,
     onRealtimeChange: React.PropTypes.func.isRequired,
     onSelectStatsPeriod: React.PropTypes.func.isRequired,
+    onSelectStatsType: React.PropTypes.func.isRequired,
     realtimeActive: React.PropTypes.bool.isRequired,
     statsPeriod: React.PropTypes.string.isRequired,
+    statsType: React.PropTypes.string.isRequired,
     query: React.PropTypes.string.isRequired
   },
 
@@ -47,6 +49,10 @@ const StreamActions = React.createClass({
 
   selectStatsPeriod(period) {
     return this.props.onSelectStatsPeriod(period);
+  },
+
+  selectStatsType(type) {
+    return this.props.onSelectStatsType(type);
   },
 
   actionSelectedGroups(callback) {
@@ -375,7 +381,17 @@ const StreamActions = React.createClass({
           <div className="hidden-sm stream-actions-assignee col-md-1"></div>
           <div className="stream-actions-level col-md-1 hidden-xs"></div>
           <div className="hidden-sm hidden-xs stream-actions-graph col-md-2">
-            <span className="stream-actions-graph-label">{t('Graph:')}</span>
+            <DropdownLink title={({
+              "events": "Events",
+              "users": "Users"
+            })[this.props.statsType]}>
+              <MenuItem
+                onClick={this.selectStatsType.bind(this, "events")}
+                isActive={this.props.statsType == "events"}>Events</MenuItem>
+              <MenuItem
+                onClick={this.selectStatsType.bind(this, "users")}
+                isActive={this.props.statsType == "users"}>Users</MenuItem>
+            </DropdownLink>
             <ul className="toggle-graph">
               <li className={this.props.statsPeriod === '24h' ? 'active' : ''}>
                 <a onClick={this.selectStatsPeriod.bind(this, '24h')}>{t('24h')}</a>

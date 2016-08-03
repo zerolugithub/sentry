@@ -28,6 +28,7 @@ const Stream = React.createClass({
   propTypes: {
     defaultSort: React.PropTypes.string,
     defaultStatsPeriod: React.PropTypes.string,
+    defaultStatsType: React.PropTypes.string,
     defaultQuery: React.PropTypes.string,
     maxItems: React.PropTypes.number,
     setProjectNavSection: React.PropTypes.func
@@ -46,6 +47,7 @@ const Stream = React.createClass({
       defaultQuery: null,
       defaultSort: 'date',
       defaultStatsPeriod: '24h',
+      defaultStatsType: 'events',
       maxItems: 25
     };
   },
@@ -64,6 +66,7 @@ const Stream = React.createClass({
       multiSelected: false,
       anySelected: false,
       statsPeriod: this.props.defaultStatsPeriod,
+      statsType: this.props.defaultStatsType,
       realtimeActive: Cookies.get('realtimeActive') === 'true',
       pageLinks: '',
       dataLoading: true,
@@ -250,9 +253,19 @@ const Stream = React.createClass({
       statsPeriod = this.props.defaultStatsPeriod;
     }
 
+    let statsType =
+      currentQuery.hasOwnProperty('statsType') ?
+      currentQuery.statsType :
+      this.props.defaultStatsType;
+
+    if (statsType !== 'events' && statsType !== 'users') {
+      statsType = this.props.defaultStatsType;  // seems weird...
+    }
+
     let newState = {
       sort: sort,
       statsPeriod: statsPeriod,
+      statsType: statsType,
       query: hasQuery ? currentQuery.query : '',
       searchId: searchId,
       isDefaultSearch: false
@@ -308,6 +321,7 @@ const Stream = React.createClass({
       limit: this.props.maxItems,
       sort: this.state.sort,
       statsPeriod: this.state.statsPeriod,
+      statsType: this.state.statsType,
       shortIdLookup: '1',
     };
 
@@ -387,6 +401,17 @@ const Stream = React.createClass({
       // TODO(dcramer): all charts should now suggest "loading"
       this.setState({
         statsPeriod: period
+      }, function() {
+        this.transitionTo();
+      });
+    }
+  },
+
+  onSelectStatsType(type) {
+    if (type != this.state.statsType) {
+      // TODO(dcramer): all charts should now suggest "loading"
+      this.setState({
+        statsType: type
       }, function() {
         this.transitionTo();
       });
@@ -474,6 +499,10 @@ const Stream = React.createClass({
       queryParams.statsPeriod = this.state.statsPeriod;
     }
 
+    if (this.state.statsType !== this.props.defaultStatsType) {
+      queryParams.statsType = this.state.statsType;
+    }
+
     let params = this.props.params;
     let path = (this.state.searchId ?
       `/${params.orgId}/${params.projectId}/searches/${this.state.searchId}/` :
@@ -482,7 +511,7 @@ const Stream = React.createClass({
     this.history.pushState(null, path, queryParams);
   },
 
-  renderGroupNodes(ids, statsPeriod) {
+  renderGroupNodes(ids, statsPeriod, statsType) {
     let {orgId, projectId} = this.props.params;
     let groupNodes = ids.map((id) => {
       return (
@@ -491,7 +520,8 @@ const Stream = React.createClass({
           id={id}
           orgId={orgId}
           projectId={projectId}
-          statsPeriod={statsPeriod} />
+          statsPeriod={statsPeriod}
+          statsType={statsType} />
       );
     });
 
@@ -550,7 +580,7 @@ const Stream = React.createClass({
     } else if (!project.firstEvent) {
       body = this.renderAwaitingEvents();
     } else if (this.state.groupIds.length > 0) {
-      body = this.renderGroupNodes(this.state.groupIds, this.state.statsPeriod);
+      body = this.renderGroupNodes(this.state.groupIds, this.state.statsPeriod, this.state.statsType);
     } else {
       body = this.renderEmpty();
     }
@@ -602,9 +632,11 @@ const Stream = React.createClass({
                     projectId={params.projectId}
                     query={this.state.query}
                     onSelectStatsPeriod={this.onSelectStatsPeriod}
+                    onSelectStatsType={this.onSelectStatsType}
                     onRealtimeChange={this.onRealtimeChange}
                     realtimeActive={this.state.realtimeActive}
                     statsPeriod={this.state.statsPeriod}
+                    statsType={this.state.statsType}
                     groupIds={this.state.groupIds}
                     allResultsVisible={this.allResultsVisible()}/>
                 </div>
