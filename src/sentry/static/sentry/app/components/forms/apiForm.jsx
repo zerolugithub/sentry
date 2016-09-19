@@ -46,6 +46,7 @@ export default class ApiForm extends Form {
             this.onSubmitSuccess(result);
           },
           error: error => {
+            IndicatorStore.add(t('There was an error saving your changes.'), 'error');
             this.onSubmitError(error);
           },
           complete: () => {

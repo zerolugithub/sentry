@@ -51,8 +51,9 @@ import ProjectDataForwarding from './views/projectDataForwarding';
 import ProjectDetails from './views/projectDetails';
 import ProjectEvents from './views/projectEvents';
 import ProjectFilters from './views/projectFilters';
-import ProjectGettingStarted from './views/projectInstall/gettingStarted';
 import ProjectDocsContext from './views/projectInstall/docsContext';
+import ProjectGeneralSettings from './views/projectGeneralSettings';
+import ProjectGettingStarted from './views/projectInstall/gettingStarted';
 import ProjectInstallOverview from './views/projectInstall/overview';
 import ProjectInstallPlatform from './views/projectInstall/platform';
 import ProjectReleases from './views/projectReleases';
@@ -231,6 +232,7 @@ function routes() {
           </Route>
           <Route path="user-feedback/" component={errorHandler(ProjectUserReports)} />
           <Route path="settings/" component={errorHandler(ProjectSettings)}>
+            <IndexRoute component={errorHandler(ProjectGeneralSettings)} />
             <Route path="alerts/" component={errorHandler(ProjectAlertSettings)} />
             <Route path="alerts/rules/" component={errorHandler(ProjectAlertRules)} />
             <Route

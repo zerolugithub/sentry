@@ -6,6 +6,7 @@ from collections import defaultdict
 from django.db.models import Q
 from django.db.models.aggregates import Count
 
+from sentry import options
 from sentry.api.serializers import register, serialize, Serializer
 from sentry.api.serializers.models.plugin import PluginSerializer
 from sentry.digests import backend as digests
@@ -146,6 +147,12 @@ class DetailedProjectSerializer(ProjectWithTeamSerializer):
         'sentry:default_environment',
         'sentry:reprocessing_active',
         'sentry:blacklisted_ips',
+        'sentry:resolve_age',
+        'sentry:scrape_javascript',
+        'sentry:token',
+        'sentry:token_header',
+        'sentry:verify_ssl',
+        'sentry:scrub_ip_address',
         'feedback:branding',
         'digests:mail:minimum_delay',
         'digests:mail:maximum_delay',
@@ -232,14 +239,11 @@ class DetailedProjectSerializer(ProjectWithTeamSerializer):
             obj, attrs, user
         )
         data.update({
+            'organization': attrs['org'],
             'latestRelease': attrs['latest_release'],
+            'platforms': attrs['platforms'],
+            'processingIssues': attrs['processing_issues'],
             'options': {
-                'sentry:origins': '\n'.join(attrs['options'].get('sentry:origins', ['*']) or []),
-                'sentry:resolve_age': int(attrs['options'].get('sentry:resolve_age', 0)),
-                'sentry:scrub_data': bool(attrs['options'].get('sentry:scrub_data', True)),
-                'sentry:scrub_defaults': bool(attrs['options'].get('sentry:scrub_defaults', True)),
-                'sentry:safe_fields': attrs['options'].get('sentry:safe_fields', []),
-                'sentry:sensitive_fields': attrs['options'].get('sentry:sensitive_fields', []),
                 'sentry:csp_ignored_sources_defaults': bool(attrs['options'].get('sentry:csp_ignored_sources_defaults', True)),
                 'sentry:csp_ignored_sources': '\n'.join(attrs['options'].get('sentry:csp_ignored_sources', []) or []),
                 'sentry:reprocessing_active': bool(attrs['options'].get('sentry:reprocessing_active', False)),
@@ -252,17 +256,25 @@ class DetailedProjectSerializer(ProjectWithTeamSerializer):
             'digestsMaxDelay': attrs['options'].get(
                 'digests:mail:maximum_delay', digests.maximum_delay,
             ),
-            'subjectPrefix': attrs['options'].get('mail:subject_prefix'),
+            'allowedDomains': attrs['options'].get('sentry:origins', ['*']) or [],
+            'resolveAge': int(attrs['options'].get('sentry:resolve_age', 0)),
+            'dataScrubber': bool(attrs['options'].get('sentry:scrub_data', True)),
+            'sensitiveFields': attrs['options'].get('sentry:sensitive_fields', []),
+            'safeFields': attrs['options'].get('sentry:safe_fields', []),
+            'dataScrubberDefaults': bool(attrs['options'].get('sentry:scrub_defaults', True)),
+            'subjectPrefix': attrs['options'].get('mail:subject_prefix', options.get('mail.subject-prefix')),
             'subjectTemplate': attrs['options'].get('mail:subject_template') or DEFAULT_SUBJECT_TEMPLATE.template,
-            'organization': attrs['org'],
+            'securityToken': attrs['options'].get('sentry:token') or obj.get_security_token(),
+            'securityTokenHeader': attrs['options'].get('sentry:token_header') or 'X-Sentry-Token',
+            'verifySSL': bool(attrs['options'].get('sentry:verify_ssl', False)),
+            'scrubIPAddresses': bool(attrs['options'].get('sentry:scrub_ip_address', False)),
+            'scrapeJavaScript': bool(attrs['options'].get('sentry:scrape_javascript', True)),
+            'defaultEnvironment': attrs['options'].get('sentry:default_environment'),
             'plugins': serialize([
                 plugin
                 for plugin in plugins.configurable_for_project(obj, version=None)
                 if plugin.has_project_conf()
             ], user, PluginSerializer(obj)),
-            'platforms': attrs['platforms'],
-            'processingIssues': attrs['processing_issues'],
-            'defaultEnvironment': attrs['options'].get('default_environment'),
         })
         return data
 

@@ -1,22 +1,24 @@
 from __future__ import absolute_import
 
 import logging
-from uuid import uuid4
+import six
 
 from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
+from uuid import uuid4
 
 from sentry.api.base import DocSection
 from sentry.api.bases.project import ProjectEndpoint, ProjectPermission
 from sentry.api.decorators import sudo_required
 from sentry.api.serializers import serialize
 from sentry.api.serializers.models.project import DetailedProjectSerializer
+from sentry.api.serializers.rest_framework import ListField, OriginField
 from sentry.models import (
-    AuditLogEntryEvent, Group, GroupStatus, Project, ProjectBookmark,
-    ProjectStatus, UserOption
+    AuditLogEntryEvent, Group, GroupStatus, OrganizationMemberTeam, Project,
+    ProjectBookmark, ProjectStatus, Team, UserOption
 )
 from sentry.tasks.deletion import delete_project
 from sentry.utils.apidocs import scenario, attach_scenarios
@@ -73,23 +75,65 @@ def clean_newline_inputs(value):
 class ProjectMemberSerializer(serializers.Serializer):
     isBookmarked = serializers.BooleanField()
     isSubscribed = serializers.BooleanField()
-    platform = serializers.CharField(required=False)
 
 
-class ProjectAdminSerializer(serializers.Serializer):
-    isBookmarked = serializers.BooleanField()
-    isSubscribed = serializers.BooleanField()
+class ProjectAdminSerializer(ProjectMemberSerializer):
     name = serializers.CharField(max_length=200)
     slug = serializers.RegexField(r'^[a-z0-9_\-]+$', max_length=50)
+    team = serializers.RegexField(r'^[a-z0-9_\-]+$', max_length=50)
     digestsMinDelay = serializers.IntegerField(min_value=60, max_value=3600)
     digestsMaxDelay = serializers.IntegerField(min_value=60, max_value=3600)
     subjectPrefix = serializers.CharField(max_length=200)
     subjectTemplate = serializers.CharField(max_length=200)
+    securityToken = serializers.RegexField(r'^[-a-zA-Z0-9+/=\s]+$', max_length=255)
+    securityTokenHeader = serializers.RegexField(r'^[a-zA-Z0-9_\-]+$', max_length=20)
+    verifySSL = serializers.BooleanField(required=False)
+    defaultEnvironment = serializers.CharField(required=False)
+    dataScrubber = serializers.BooleanField(required=False)
+    dataScrubberDefaults = serializers.BooleanField(required=False)
+    sensitiveFields = ListField(child=serializers.CharField(), required=False)
+    safeFields = ListField(child=serializers.CharField(), required=False)
+    scrubIPAddresses = serializers.BooleanField(required=False)
+    scrapeJavaScript = serializers.BooleanField(required=False)
+    allowedDomains = ListField(child=OriginField(), required=False)
+    resolveAge = serializers.IntegerField(required=False)
     platform = serializers.CharField(required=False)
 
     def validate_digestsMaxDelay(self, attrs, source):
         if attrs[source] < attrs['digestsMinDelay']:
             raise serializers.ValidationError('The maximum delay on digests must be higher than the minimum.')
+        return attrs
+
+    def validate_slug(self, attrs, source):
+        slug = attrs[source]
+        project = self.context['project']
+        other = Project.objects.filter(
+            slug=slug,
+            organization=project.organization,
+        ).exclude(id=project.id).first()
+        if other is not None:
+            raise serializers.ValidationError(
+                'Another project (%s) is already using that slug' % other.name
+            )
+        return attrs
+
+    def validate_team(self, attrs, source):
+        value = attrs[source]
+        request = self.context['request']
+        if isinstance(value, six.text_type):
+            try:
+                value = Team.objects.get(
+                    organization=self.context['project'].organization,
+                    slug=value,
+                )
+            except Team.DoesNotExist:
+                raise serializers.ValidationError('Invalid team.')
+        if request.user.is_authenticated()and not OrganizationMemberTeam.objects.filter(
+            organizationmember__user=request.user,
+            team=value,
+        ).exists():
+            raise serializers.ValidationError('Invalid team.')
+        attrs[source] = value
         return attrs
 
 
@@ -164,8 +208,6 @@ class ProjectDetailsEndpoint(ProjectEndpoint):
                                      the bookmark flag.
         :param int digestsMinDelay:
         :param int digestsMaxDelay:
-        :param object options: optional options to override in the
-                               project settings.
         :auth: required
         """
         has_project_write = (
@@ -178,7 +220,14 @@ class ProjectDetailsEndpoint(ProjectEndpoint):
         else:
             serializer_cls = ProjectMemberSerializer
 
-        serializer = serializer_cls(data=request.DATA, partial=True)
+        serializer = serializer_cls(
+            data=request.DATA,
+            partial=True,
+            context={
+                'project': project,
+                'request': request,
+            },
+        )
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
@@ -195,6 +244,10 @@ class ProjectDetailsEndpoint(ProjectEndpoint):
 
         if result.get('platform'):
             project.platform = result['platform']
+            changed = True
+
+        if result.get('team'):
+            project.team = result['team']
             changed = True
 
         if changed:
@@ -223,6 +276,30 @@ class ProjectDetailsEndpoint(ProjectEndpoint):
             project.update_option('mail:subject_prefix', result['subjectPrefix'])
         if result.get('subjectTemplate'):
             project.update_option('mail:subject_template', result['subjectTemplate'])
+        if result.get('defaultEnvironment'):
+            project.update_option('sentry:default_environment', result['defaultEnvironment'])
+        if result.get('scrubIPAddresses') is not None:
+            project.update_option('sentry:scrub_ip_address', result['scrubIPAddresses'])
+        if result.get('securityToken'):
+            project.update_option('sentry:token', result['securityToken'])
+        if result.get('securityTokenHeader'):
+            project.update_option('sentry:token_header', result['securityTokenHeader'])
+        if result.get('verifySSL') is not None:
+            project.update_option('sentry:verify_ssl', result['verifySSL'])
+        if result.get('dataScrubber') is not None:
+            project.update_option('sentry:scrub_data', result['dataScrubber'])
+        if result.get('dataScrubberDefaults') is not None:
+            project.update_option('sentry:scrub_defaults', result['dataScrubberDefaults'])
+        if result.get('sensitiveFields') is not None:
+            project.update_option('sentry:sensitive_fields', result['sensitiveFields'])
+        if result.get('safeFields') is not None:
+            project.update_option('sentry:safe_fields', result['safeFields'])
+        if result.get('resolveAge'):
+            project.update_option('sentry:resolve_age', result['resolveAge'])
+        if result.get('scrapeJavaScript') is not None:
+            project.update_option('sentry:scrape_javascript', result['scrapeJavaScript'])
+        if result.get('allowedDomains') is not None:
+            project.update_option('sentry:origins', result['allowedDomains'])
 
         if result.get('isSubscribed'):
             UserOption.objects.set_value(
@@ -239,36 +316,74 @@ class ProjectDetailsEndpoint(ProjectEndpoint):
                 project=project
             )
 
+        # TODO(dcramer): rewrite options to use standard API config
         if has_project_write:
             options = request.DATA.get('options', {})
             if 'sentry:origins' in options:
                 project.update_option(
                     'sentry:origins',
-                    clean_newline_inputs(options['sentry:origins'])
+                    clean_newline_inputs(options['sentry:origins']),
                 )
             if 'sentry:resolve_age' in options:
-                project.update_option('sentry:resolve_age', int(options['sentry:resolve_age']))
+                project.update_option(
+                    'sentry:resolve_age',
+                    int(options['sentry:resolve_age']),
+                )
             if 'sentry:scrub_data' in options:
-                project.update_option('sentry:scrub_data', bool(options['sentry:scrub_data']))
+                project.update_option(
+                    'sentry:scrub_data',
+                    bool(options['sentry:scrub_data']),
+                )
             if 'sentry:scrub_defaults' in options:
-                project.update_option('sentry:scrub_defaults', bool(options['sentry:scrub_defaults']))
+                project.update_option(
+                    'sentry:scrub_defaults',
+                    bool(options['sentry:scrub_defaults']),
+                )
             if 'sentry:safe_fields' in options:
                 project.update_option(
                     'sentry:safe_fields',
-                    [s.strip().lower() for s in options['sentry:safe_fields']]
+                    [v.strip() for v in options['sentry:safe_fields']],
                 )
             if 'sentry:sensitive_fields' in options:
                 project.update_option(
                     'sentry:sensitive_fields',
-                    [s.strip().lower() for s in options['sentry:sensitive_fields']]
+                    [v.strip() for v in options['sentry:sensitive_fields']],
+                )
+            if 'sentry:scrub_ip_address' in options:
+                project.update_option(
+                    'sentry:scrub_ip_address',
+                    bool(options['sentry:scrub_ip_address']),
+                )
+            if 'mail:subject_prefix' in options:
+                project.update_option(
+                    'mail:subject_prefix',
+                    options['mail:subject_prefix'],
+                )
+            if 'sentry:default_environment' in options:
+                project.update_option(
+                    'sentry:default_environment',
+                    options['sentry:default_environment'],
                 )
             if 'sentry:csp_ignored_sources_defaults' in options:
-                project.update_option('sentry:csp_ignored_sources_defaults', bool(options['sentry:csp_ignored_sources_defaults']))
+                project.update_option(
+                    'sentry:csp_ignored_sources_defaults',
+                    bool(options['sentry:csp_ignored_sources_defaults']),
+                )
             if 'sentry:csp_ignored_sources' in options:
                 project.update_option(
                     'sentry:csp_ignored_sources',
-                    clean_newline_inputs(options['sentry:csp_ignored_sources']))
+                    clean_newline_inputs(options['sentry:csp_ignored_sources']),
+                )
+            if 'sentry:blacklisted_ips' in options:
+                project.update_option(
+                    'sentry:blacklisted_ips',
+                    clean_newline_inputs(options['sentry:blacklisted_ips']),
+                )
             if 'feedback:branding' in options:
+                project.update_option(
+                    'feedback:branding',
+                    '1' if options['feedback:branding'] else '0',
+                )
                 project.update_option('feedback:branding', '1' if options['feedback:branding'] else '0')
             if 'sentry:reprocessing_active' in options:
                 project.update_option('sentry:reprocessing_active',

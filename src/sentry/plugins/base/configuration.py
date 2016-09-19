@@ -18,6 +18,7 @@ from sentry.api import client
 from sentry.api.serializers import serialize
 from sentry.models import ProjectOption
 from sentry.utils import json
+from sentry.utils.http import absolute_uri
 
 
 def react_plugin_config(plugin, project, request):
@@ -55,8 +56,8 @@ def default_plugin_config(plugin, project, request):
     template = plugin.get_conf_template(project)
 
     if form_class is None:
-        return HttpResponseRedirect(reverse(
-            'sentry-manage-project', args=[project.organization.slug, project.slug]))
+        return HttpResponseRedirect(absolute_uri('/{}/{}/settings/'.format(
+            project.organization.slug, project.slug)))
 
     test_results = None
 

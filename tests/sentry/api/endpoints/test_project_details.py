@@ -5,7 +5,10 @@ import six
 
 from django.core.urlresolvers import reverse
 
-from sentry.models import Project, ProjectBookmark, ProjectStatus, UserOption
+from sentry.models import (
+    OrganizationMember, OrganizationMemberTeam, Project, ProjectBookmark,
+    ProjectStatus, UserOption
+)
 from sentry.testutils import APITestCase
 
 
@@ -59,25 +62,15 @@ class ProjectDetailsTest(APITestCase):
 
 
 class ProjectUpdateTest(APITestCase):
-    def test_simple(self):
-        project = self.project  # force creation
+    def setUp(self):
+        super(ProjectUpdateTest, self).setUp()
+        self.path = reverse('sentry-api-0-project-details', kwargs={
+            'organization_slug': self.project.organization.slug,
+            'project_slug': self.project.slug,
+        })
         self.login_as(user=self.user)
-        url = reverse('sentry-api-0-project-details', kwargs={
-            'organization_slug': project.organization.slug,
-            'project_slug': project.slug,
-        })
-        resp = self.client.put(url, data={
-            'name': 'hello world',
-            'slug': 'foobar',
-            'platform': 'cocoa',
-        })
-        assert resp.status_code == 200, resp.content
-        project = Project.objects.get(id=project.id)
-        assert project.name == 'hello world'
-        assert project.slug == 'foobar'
-        assert project.platform == 'cocoa'
 
-    def test_member_changes(self):
+    def test_simple_member_restriction(self):
         project = self.create_project()
         user = self.create_user('bar@example.com')
         self.create_member(
@@ -86,30 +79,44 @@ class ProjectUpdateTest(APITestCase):
             teams=[project.team],
             role='member',
         )
-        self.login_as(user=user)
-        url = reverse('sentry-api-0-project-details', kwargs={
-            'organization_slug': project.organization.slug,
-            'project_slug': project.slug,
-        })
-        response = self.client.put(url, data={
+        self.login_as(user)
+        resp = self.client.put(self.path, data={
             'slug': 'zzz',
             'isBookmarked': 'true',
         })
-        assert response.status_code == 200
-        assert response.data['slug'] != 'zzz'
+        assert resp.status_code == 200
+        assert resp.data['slug'] != 'zzz'
 
         assert ProjectBookmark.objects.filter(
             user=user,
-            project_id=project.id,
+            project_id=self.project.id,
         ).exists()
 
-    def test_options(self):
-        project = self.project  # force creation
-        self.login_as(user=self.user)
-        url = reverse('sentry-api-0-project-details', kwargs={
-            'organization_slug': project.organization.slug,
-            'project_slug': project.slug,
+    def test_name(self):
+        resp = self.client.put(self.path, data={
+            'name': 'hello world',
         })
+        assert resp.status_code == 200, resp.content
+        project = Project.objects.get(id=self.project.id)
+        assert project.name == 'hello world'
+
+    def test_slug(self):
+        resp = self.client.put(self.path, data={
+            'slug': 'foobar',
+        })
+        assert resp.status_code == 200, resp.content
+        project = Project.objects.get(id=self.project.id)
+        assert project.slug == 'foobar'
+
+    def test_platform(self):
+        resp = self.client.put(self.path, data={
+            'platform': 'cocoa',
+        })
+        assert resp.status_code == 200, resp.content
+        project = Project.objects.get(id=self.project.id)
+        assert project.platform == 'cocoa'
+
+    def test_options(self):
         options = {
             'sentry:origins': 'foo\nbar',
             'sentry:resolve_age': 1,
@@ -120,11 +127,11 @@ class ProjectUpdateTest(APITestCase):
             'sentry:csp_ignored_sources_defaults': False,
             'sentry:csp_ignored_sources': 'foo\nbar',
         }
-        resp = self.client.put(url, data={
+        resp = self.client.put(self.path, data={
             'options': options
         })
         assert resp.status_code == 200, resp.content
-        project = Project.objects.get(id=project.id)
+        project = Project.objects.get(id=self.project.id)
         assert project.get_option('sentry:origins', []) == options['sentry:origins'].split('\n')
         assert project.get_option('sentry:resolve_age', 0) == options['sentry:resolve_age']
         assert project.get_option('sentry:scrub_data', True) == options['sentry:scrub_data']
@@ -135,54 +142,170 @@ class ProjectUpdateTest(APITestCase):
         assert project.get_option('sentry:csp_ignored_sources', []) == options['sentry:csp_ignored_sources'].split('\n')
 
     def test_bookmarks(self):
-        project = self.project  # force creation
-        self.login_as(user=self.user)
-        url = reverse('sentry-api-0-project-details', kwargs={
-            'organization_slug': project.organization.slug,
-            'project_slug': project.slug,
-        })
-        resp = self.client.put(url, data={
+        resp = self.client.put(self.path, data={
             'isBookmarked': 'true',
         })
         assert resp.status_code == 200, resp.content
         assert ProjectBookmark.objects.filter(
-            project_id=project.id,
+            project_id=self.project.id,
             user=self.user,
         ).exists()
 
-        resp = self.client.put(url, data={
+        resp = self.client.put(self.path, data={
             'isBookmarked': 'false',
         })
         assert resp.status_code == 200, resp.content
         assert not ProjectBookmark.objects.filter(
-            project_id=project.id,
+            project_id=self.project.id,
             user=self.user,
         ).exists()
 
     def test_subscription(self):
-        project = self.project  # force creation
-        self.login_as(user=self.user)
-        url = reverse('sentry-api-0-project-details', kwargs={
-            'organization_slug': project.organization.slug,
-            'project_slug': project.slug,
-        })
-        resp = self.client.put(url, data={
+        resp = self.client.put(self.path, data={
             'isSubscribed': 'true',
         })
         assert resp.status_code == 200, resp.content
         assert UserOption.objects.get(
             user=self.user,
-            project=project,
+            project=self.project,
         ).value == 1
 
-        resp = self.client.put(url, data={
+        resp = self.client.put(self.path, data={
             'isSubscribed': 'false',
         })
         assert resp.status_code == 200, resp.content
         assert UserOption.objects.get(
             user=self.user,
-            project=project,
+            project=self.project,
         ).value == 0
+
+    def test_team(self):
+        team2 = self.create_team(
+            name='other team',
+            organization=self.project.organization,
+        )
+
+        OrganizationMemberTeam.objects.create(
+            organizationmember=OrganizationMember.objects.get(
+                user=self.user,
+                organization=self.project.organization,
+            ),
+            team=team2,
+        )
+
+        resp = self.client.put(self.path, data={
+            'team': team2.slug,
+        })
+        assert resp.status_code == 200, resp.content
+        project = Project.objects.get(id=self.project.id)
+        assert project.team == team2
+
+    def test_invalid_team(self):
+        team2 = self.create_team(
+            name='other team',
+            organization=self.create_organization(name='other org')
+        )
+
+        resp = self.client.put(self.path, data={
+            'team': team2.slug,
+        })
+        assert resp.status_code == 400, resp.content
+
+    def test_security_token(self):
+        resp = self.client.put(self.path, data={
+            'securityToken': 'fizzbuzz',
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_security_token() == 'fizzbuzz'
+        assert resp.data['securityToken'] == 'fizzbuzz'
+
+    def test_security_token_header(self):
+        resp = self.client.put(self.path, data={
+            'securityTokenHeader': 'X-Hello-World',
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:token_header') == 'X-Hello-World'
+        assert resp.data['securityTokenHeader'] == 'X-Hello-World'
+
+    def test_verify_ssl(self):
+        resp = self.client.put(self.path, data={
+            'verifySSL': False,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:verify_ssl') is False
+        assert resp.data['verifySSL'] is False
+
+    def test_scrub_ip_address(self):
+        resp = self.client.put(self.path, data={
+            'scrubIPAddresses': True,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:scrub_ip_address') is True
+        assert resp.data['scrubIPAddresses'] is True
+
+    def test_scrape_javascript(self):
+        resp = self.client.put(self.path, data={
+            'scrapeJavaScript': False,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:scrape_javascript') is False
+        assert resp.data['scrapeJavaScript'] is False
+
+    def test_default_environment(self):
+        resp = self.client.put(self.path, data={
+            'defaultEnvironment': 'dev',
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:default_environment') == 'dev'
+        assert resp.data['defaultEnvironment'] == 'dev'
+
+    def test_resolve_age(self):
+        resp = self.client.put(self.path, data={
+            'resolveAge': 5,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:resolve_age') == 5
+        assert resp.data['resolveAge'] == 5
+
+    def test_allowed_domains(self):
+        resp = self.client.put(self.path, data={
+            'allowedDomains': ['foobar.com', 'https://example.com'],
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:origins') == ['foobar.com', 'https://example.com']
+        assert resp.data['allowedDomains'] == ['foobar.com', 'https://example.com']
+
+    def test_safe_fields(self):
+        resp = self.client.put(self.path, data={
+            'safeFields': ['foobar.com', 'https://example.com'],
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:safe_fields') == ['foobar.com', 'https://example.com']
+        assert resp.data['safeFields'] == ['foobar.com', 'https://example.com']
+
+    def test_sensitive_fields(self):
+        resp = self.client.put(self.path, data={
+            'sensitiveFields': ['foobar.com', 'https://example.com'],
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:sensitive_fields') == ['foobar.com', 'https://example.com']
+        assert resp.data['sensitiveFields'] == ['foobar.com', 'https://example.com']
+
+    def test_data_scrubber(self):
+        resp = self.client.put(self.path, data={
+            'dataScrubber': False,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:scrub_data') is False
+        assert resp.data['dataScrubber'] is False
+
+    def test_data_scrubber_defaults(self):
+        resp = self.client.put(self.path, data={
+            'dataScrubberDefaults': False,
+        })
+        assert resp.status_code == 200, resp.content
+        assert self.project.get_option('sentry:scrub_defaults') is False
+        assert resp.data['dataScrubberDefaults'] is False
 
 
 class ProjectDeleteTest(APITestCase):
