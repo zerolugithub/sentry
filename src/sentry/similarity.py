@@ -440,10 +440,11 @@ class MessageFeature(object):
 
 
 class FeatureSet(object):
-    def __init__(self, index, aliases, features):
+    def __init__(self, index, aliases, features, aggregator):
         self.index = index
         self.aliases = aliases
         self.features = features
+        self.aggregator = aggregator
         self.__number_format = get_number_format(0xFFFFFFFF)
         assert set(self.aliases) == set(self.features)
 
@@ -483,7 +484,7 @@ class FeatureSet(object):
 
         return sorted(
             results.items(),
-            key=lambda (id, features): sum(features.values()),
+            key=lambda (id, features): self.aggregator(features),
             reverse=True,
         )
 
@@ -498,6 +499,18 @@ def serialize_text_shingle(value, separator=b''):
             value,
         ),
     )
+
+
+class BoostingAggregator(object):
+    def __init__(self, coefficients):
+        self.coefficients = coefficients
+
+    def __call__(self, features):
+        return sum(
+            self.coefficients[feature] * score
+            for feature, score in
+            features.items()
+        )
 
 
 features = FeatureSet(
@@ -561,5 +574,11 @@ features = FeatureSet(
                 ),
             ),
         ),
-    }
+    },
+    BoostingAggregator({
+        'exception:message:character-shingles': 1.0,
+        'exception:stacktrace:application-chunks': 10.0,
+        'exception:stacktrace:pairs': 5.0,
+        'message:message:character-shingles': 1.0,
+    }),
 )
