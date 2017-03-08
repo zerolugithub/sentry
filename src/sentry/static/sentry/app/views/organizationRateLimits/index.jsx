@@ -16,7 +16,7 @@ const AccountLimit = React.createClass({
   getRateLimitValues() {
     let steps = [];
     let i = 0;
-    while (i <= 1000000) {
+    while (i <= 500000) {
       steps.push(i);
       if (i < 10000) {
         i += 1000;
