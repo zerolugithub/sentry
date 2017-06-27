@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+import itertools
+
 from django.conf import settings
 
 from sentry.similarity.features import (
@@ -12,6 +14,13 @@ from sentry.similarity.index import MinHashIndex
 from sentry.utils import redis
 from sentry.utils.datastructures import BidirectionalMapping
 from sentry.utils.iterators import shingle
+
+
+def text_shingle(n, value):
+    return itertools.imap(
+        u''.join,
+        shingle(n, value),
+    )
 
 
 features = FeatureSet(
@@ -37,25 +46,16 @@ features = FeatureSet(
     }),
     {
         'exception:message:character-shingles': ExceptionFeature(
-            lambda exception: shingle(
-                13,
-                exception.value,
-            ),
+            lambda exception: text_shingle(13, exception.value),
         ),
         'exception:stacktrace:application-chunks': ExceptionFeature(
             lambda exception: get_application_chunks(exception),
         ),
         'exception:stacktrace:pairs': ExceptionFeature(
-            lambda exception: shingle(
-                2,
-                exception.stacktrace.frames,
-            ),
+            lambda exception: shingle(2, exception.stacktrace.frames),
         ),
         'message:message:character-shingles': MessageFeature(
-            lambda message: shingle(
-                13,
-                message.message,
-            ),
+            lambda message: text_shingle(13, message.message),
         ),
     }
 )
