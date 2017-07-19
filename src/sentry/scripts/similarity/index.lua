@@ -219,13 +219,12 @@ end
 
 -- Key Generation
 
-local function get_bucket_frequency_key(configuration, index, time, band, item)
+local function get_bucket_frequency_key(configuration, index, band, item)
     return string.format(
-        '%s:%s:f:%s:%s:%s:%s',
+        '%s:%s:f:%s:%s:%s',
         configuration.namespace,
         configuration.scope,
         index,
-        time,
         band,
         item
     )
