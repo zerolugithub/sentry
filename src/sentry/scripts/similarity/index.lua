@@ -370,42 +370,26 @@ local function fetch_candidates(configuration, time_series, index, frequencies)
     return candidates
 end
 
-local function fetch_bucket_frequencies(configuration, time_series, index, key)
+local function fetch_bucket_frequencies(configuration, index, key)
     --[[
-    Fetches all of the bucket frequencies for a key from a specific index from
-    all active time series chunks. This returns an array-like table that
-    contains one table for each band that maps bucket identifiers to counts
-    across the entire time series.
+    Fetches all of the bucket frequencies for a key from a specific index.
+    This returns an array-like table that contains one table for each band that
+    maps bucket identifiers to counts.
     ]]--
     return table.imap(
         range(1, configuration.bands),
         function (band)
-            return table.ireduce(
-                table.imap(
-                    time_series,
-                    function (time)
-                        return redis_hgetall_response_to_table(
-                            redis.call(
-                                'HGETALL',
-                                get_bucket_frequency_key(
-                                    configuration,
-                                    index,
-                                    time,
-                                    band,
-                                    key
-                                )
-                            ),
-                            tonumber
-                        )
-                    end
+            return redis_hgetall_response_to_table(
+                redis.call(
+                    'HGETALL',
+                    get_bucket_frequency_key(
+                        configuration,
+                        index,
+                        band,
+                        key
+                    )
                 ),
-                function (result, response)
-                    for bucket, count in pairs(response) do
-                        result[bucket] = (result[bucket] or 0) + count
-                    end
-                    return result
-                end,
-                {}
+                tonumber
             )
         end
     )
@@ -465,7 +449,6 @@ local function fetch_similar(configuration, time_series, index, item_frequencies
     for candidate_key, _ in pairs(candidates) do
         candidate_frequencies[candidate_key] = fetch_bucket_frequencies(
             configuration,
-            time_series,
             index,
             candidate_key
         )
@@ -604,7 +587,6 @@ local commands = {
                         index,
                         fetch_bucket_frequencies(
                             configuration,
-                            time_series,
                             index,
                             item_key
                         )
