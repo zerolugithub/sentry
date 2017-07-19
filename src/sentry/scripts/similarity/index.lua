@@ -498,7 +498,6 @@ local commands = {
                         local bucket_frequency_key = get_bucket_frequency_key(
                             configuration,
                             entry.index,
-                            time,
                             band,
                             key
                         )
@@ -506,7 +505,14 @@ local commands = {
                             results,
                             tonumber(redis.call('HINCRBY', bucket_frequency_key, bucket, 1))
                         )
-                        redis.call('EXPIREAT', bucket_frequency_key, expiration)
+
+                        local ttl = tonumber(redis.call('TTL', bucket_frequency_key))
+                        local exp = configuration.timestamp + configuration.interval * configuration.retention
+                        if ttl > 0 then
+                            -- TODO: This should only actually call EXPIREAT if there is something to do, otherwise noop.
+                            exp = math.max(configuration.timestamp + ttl, exp)
+                        end
+                        redis.call('EXPIREAT', bucket_frequency_key, exp)
                     end
 
                     return results
