@@ -722,20 +722,23 @@ local commands = {
 
             for _, source in ipairs(sources) do
                 for band = 1, configuration.bands do
+                    local source_bucket_frequency_key = get_bucket_frequency_key(
+                        configuration,
+                        source.index,
+                        band,
+                        source.key
+                    )
+
+                    local buckets = redis.call(
+                        'HKEYS',
+                        source_bucket_frequency_key
+                    )
+
+                    -- We no longer need the source frequencies.
+                    redis.call('DEL', source_bucket_frequency_key)
+
+                    -- TODO: This could maybe be made more efficient?
                     for _, time in ipairs(time_series) do
-                        local source_bucket_frequency_key = get_bucket_frequency_key(
-                            configuration,
-                            source.index,
-                            time,
-                            band,
-                            source.key
-                        )
-
-                        local buckets = redis.call(
-                            'HKEYS',
-                            source_bucket_frequency_key
-                        )
-
                         for _, bucket in ipairs(buckets) do
                             redis.call(
                                 'SREM',
@@ -749,9 +752,6 @@ local commands = {
                                 source.key
                             )
                         end
-
-                        -- We no longer need the source frequencies.
-                        redis.call('DEL', source_bucket_frequency_key)
                     end
                 end
             end
