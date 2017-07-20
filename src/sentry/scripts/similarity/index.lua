@@ -624,6 +624,8 @@ local commands = {
     ),
     MERGE = takes_configuration(
         function (configuration, arguments)
+            error('update to accomodate time series')
+
             local destination_key = arguments[1]
             local sources = collect_index_key_pairs(
                 table.slice(arguments, 2),
@@ -769,6 +771,8 @@ local commands = {
         appended to the existing data.
         ]]--
         function (configuration, arguments)
+            error('update to accomodate time series')
+
             local entries = build_variadic_argument_parser({
                 {'index', identity},
                 {'key', identity},
@@ -844,6 +848,8 @@ local commands = {
         it back to the correct type.)
         ]]--
         function (configuration, arguments)
+            error('update to accomodate time series')
+
             local bands = range(1, configuration.bands)
             local time_series = get_active_indices(
                 configuration.interval,
