@@ -327,6 +327,7 @@ const OrganizationRepositories = React.createClass({
 
     let orgId = this.props.params.orgId;
     let itemList = this.state.itemList;
+    let hasItemList = itemList && itemList.length > 0;
 
     return (
       <OrganizationHomeContainer>
@@ -349,7 +350,7 @@ const OrganizationRepositories = React.createClass({
           </DropdownLink>
         </div>
         <h3 className="m-b-2">{t('Repositories')}</h3>
-        {itemList.length > 0 &&
+        {hasItemList &&
           <div className="m-b-2">
             <p>
               {t(
@@ -363,7 +364,7 @@ const OrganizationRepositories = React.createClass({
               })}
             </p>
           </div>}
-        {itemList.length > 0
+        {hasItemList
           ? <div className="panel panel-default">
               <table className="table">
                 <tbody>
