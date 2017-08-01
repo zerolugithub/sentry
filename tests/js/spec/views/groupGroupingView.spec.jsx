@@ -7,11 +7,7 @@ import GroupGroupingView from 'app/views/groupGrouping/groupGroupingView';
 import {Client} from 'app/api';
 
 jest.mock('app/api');
-jest.mock('app/mixins/projectState', () => {
-  return {
-    getFeatures: () => new Set(['callsigns'])
-  };
-});
+jest.mock('app/mixins/projectState');
 
 const mockData = {
   similar: [

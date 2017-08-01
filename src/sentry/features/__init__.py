@@ -10,7 +10,6 @@ default_manager.add('organizations:api-keys', OrganizationFeature)  # NOQA
 default_manager.add('organizations:create')
 default_manager.add('organizations:sso', OrganizationFeature)  # NOQA
 default_manager.add('organizations:onboarding', OrganizationFeature)  # NOQA
-default_manager.add('organizations:callsigns', OrganizationFeature)  # NOQA
 default_manager.add('organizations:repos', OrganizationFeature)  # NOQA
 default_manager.add('organizations:release-commits', OrganizationFeature)  # NOQA
 default_manager.add('organizations:group-unmerge', OrganizationFeature)  # NOQA
