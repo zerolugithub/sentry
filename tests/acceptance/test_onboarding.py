@@ -22,6 +22,15 @@ class OrganizationOnboardingTest(AcceptanceTestCase):
         self.login_as(self.user)
         self.path = '/onboarding/%s/' % self.org.slug
 
-    def test_invite(self):
+    def test_onboarding(self):
         self.browser.get(self.path)
-        self.browser.snapshot(name='onboarding')
+        self.browser.wait_until('.onboarding-container')
+        self.browser.wait_until_not('.loading-indicator')
+        self.browser.snapshot(name='onboarding-choose-platform')
+
+        self.browser.click('.platform-tile.javascript')
+        self.browser.click('.btn-primary')
+
+        self.browser.wait_until('.onboarding-Configure')
+        self.browser.snapshot(name='onboarding-configure-project')
+        self.browser.click('.btn-primary')
