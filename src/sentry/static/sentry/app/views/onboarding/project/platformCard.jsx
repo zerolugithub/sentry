@@ -1,8 +1,8 @@
 import React from 'react';
+import classnames from 'classnames';
 
 import {flattenedPlatforms} from '../utils';
 import PlatformiconTile from './platformiconTile';
-import classnames from 'classnames';
 
 const PlatformCard = React.createClass({
   propTypes: {

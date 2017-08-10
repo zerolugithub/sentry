@@ -1,5 +1,15 @@
 import jQuery from 'jquery';
+import moment from 'moment';
+import Raven from 'raven-js';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import {renderToStaticMarkup} from 'react-dom/server';
+import Reflux from 'reflux';
+import * as Router from 'react-router';
+import ReactBootstrapModal from 'react-bootstrap/lib/Modal';
 
+import * as api from './api';
+import * as il8n from './locale';
 import plugins from './plugins';
 
 const csrfCookieName = window.csrfCookieName || 'sc';
@@ -36,18 +46,6 @@ jQuery.ajaxSetup({
 
 // these get exported to a global variable, which is important as its the only
 // way we can call into scoped objects
-
-import moment from 'moment';
-import Raven from 'raven-js';
-import React from 'react';
-import ReactDOM from 'react-dom';
-import {renderToStaticMarkup} from 'react-dom/server';
-import Reflux from 'reflux';
-import * as Router from 'react-router';
-import ReactBootstrapModal from 'react-bootstrap/lib/Modal';
-
-import * as api from './api';
-import * as il8n from './locale';
 
 export default {
   jQuery: jQuery,

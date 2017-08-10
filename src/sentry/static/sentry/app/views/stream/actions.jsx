@@ -1,5 +1,7 @@
 import React from 'react';
+import PureRenderMixin from 'react-addons-pure-render-mixin';
 import Reflux from 'reflux';
+
 import ApiMixin from '../../mixins/apiMixin';
 import TooltipMixin from '../../mixins/tooltip';
 import ActionLink from './actionLink';
@@ -7,7 +9,6 @@ import DropdownLink from '../../components/dropdownLink';
 import Duration from '../../components/duration';
 import IndicatorStore from '../../stores/indicatorStore';
 import MenuItem from '../../components/menuItem';
-import PureRenderMixin from 'react-addons-pure-render-mixin';
 import SelectedGroupStore from '../../stores/selectedGroupStore';
 import {t, tn} from '../../locale';
 import {getShortVersion} from '../../utils';

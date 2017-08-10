@@ -1,9 +1,8 @@
 import React from 'react';
+import PureRenderMixin from 'react-addons-pure-render-mixin';
 import classNames from 'classnames';
 
 import LoadingIndicator from '../../components/loadingIndicator';
-
-import PureRenderMixin from 'react-addons-pure-render-mixin';
 
 const SearchDropdown = React.createClass({
   propTypes: {

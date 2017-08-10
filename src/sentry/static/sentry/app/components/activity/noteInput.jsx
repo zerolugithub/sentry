@@ -1,5 +1,7 @@
 import React from 'react';
 import marked from 'marked';
+import {MentionsInput, Mention} from 'react-mentions';
+import PureRenderMixin from 'react-addons-pure-render-mixin';
 
 import ApiMixin from '../../mixins/apiMixin';
 import GroupStore from '../../stores/groupStore';
@@ -9,9 +11,6 @@ import localStorage from '../../utils/localStorage';
 import {t} from '../../locale';
 import mentionsStyle from '../../../styles/mentions-styles';
 
-import {MentionsInput, Mention} from 'react-mentions';
-
-import PureRenderMixin from 'react-addons-pure-render-mixin';
 const localStorageKey = 'noteinput:latest';
 
 function makeDefaultErrorJson() {

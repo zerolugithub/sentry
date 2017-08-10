@@ -1,11 +1,11 @@
 import React from 'react';
+import queryString from 'query-string';
 
 import ClippedBox from '../../clippedBox';
 import KeyValueList from './keyValueList';
 import ContextData from '../../contextData';
 
 import {objectIsEmpty} from '../../../utils';
-import queryString from 'query-string';
 import {t} from '../../../locale';
 
 const RichHttpContent = React.createClass({

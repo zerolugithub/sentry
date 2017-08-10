@@ -1,8 +1,8 @@
 import React from 'react';
-import Waiting from './waiting';
 import {browserHistory} from 'react-router';
-import ApiMixin from '../../../mixins/apiMixin';
 
+import Waiting from './waiting';
+import ApiMixin from '../../../mixins/apiMixin';
 import ProjectContext from '../../projects/projectContext';
 import ProjectDocsContext from '../../projectInstall/docsContext';
 import ProjectInstallPlatform from '../../projectInstall/platform';

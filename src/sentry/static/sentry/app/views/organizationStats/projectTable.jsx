@@ -1,7 +1,8 @@
 import React from 'react';
 import {Link} from 'react-router';
-import Count from '../../components/count';
 import PureRenderMixin from 'react-addons-pure-render-mixin';
+
+import Count from '../../components/count';
 import {t} from '../../locale';
 
 let getPercent = (item, total) => {

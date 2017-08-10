@@ -1,6 +1,7 @@
 import React from 'react';
-import AlertActions from '../actions/alertActions';
 import PureRenderMixin from 'react-addons-pure-render-mixin';
+
+import AlertActions from '../actions/alertActions';
 import {t} from '../locale';
 
 const AlertMessage = React.createClass({

@@ -1,13 +1,12 @@
 import React from 'react';
 import DocumentTitle from 'react-document-title';
 import {browserHistory} from 'react-router';
+import Raven from 'raven-js';
 
 import ApiMixin from '../../mixins/apiMixin';
 import ProgressNodes from './progress';
 import ProjectActions from '../../actions/projectActions';
 import {getPlatformName} from './utils';
-
-import Raven from 'raven-js';
 
 const OnboardingWizard = React.createClass({
   contextTypes: {

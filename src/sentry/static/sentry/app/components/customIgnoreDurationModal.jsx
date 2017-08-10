@@ -1,7 +1,8 @@
 import React from 'react';
 import Modal from 'react-bootstrap/lib/Modal';
-import {t} from '../locale';
 import {sprintf} from 'sprintf-js';
+
+import {t} from '../locale';
 
 export default React.createClass({
   propTypes: {
