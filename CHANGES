@@ -1,6 +1,8 @@
 Version 8.20 (Unreleased)
 -------------------------
 
+- Ignore querystrings when looking up release artifacts
+
 Schema Changes
 ~~~~~~~~~~~~~~
 - Added index on ``GroupCommitResolution.commit_id``
