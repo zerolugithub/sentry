@@ -83,7 +83,9 @@
     "snapshot": "build-storybook && PERCY_TOKEN=$STORYBOOK_PERCY_TOKEN PERCY_PROJECT=$STORYBOOK_PERCY_PROJECT percy-storybook --widths=375,1280"
   },
   "jest": {
-    "snapshotSerializers": ["enzyme-to-json/serializer"],
+    "snapshotSerializers": [
+      "enzyme-to-json/serializer"
+    ],
     "moduleNameMapper": {
       "\\.(css|less)$": "<rootDir>/tests/js/helpers/importStyleMock.js",
       "integration-docs-platforms": "<rootDir>/tests/fixtures/_platforms.json"
@@ -109,7 +111,9 @@
     "chai": "3.4.1",
     "enzyme": "2.9.1",
     "eslint": "3.19.0",
+    "eslint-import-resolver-webpack": "^0.8.3",
     "eslint-plugin-getsentry": "1.0.0",
+    "eslint-plugin-import": "^2.7.0",
     "eslint-plugin-react": "6.10.3",
     "jest": "^19.0.2",
     "karma-sourcemap-loader": "0.3.7",
