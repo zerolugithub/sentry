@@ -1,6 +1,8 @@
 Version 8.20 (Unreleased)
 -------------------------
 
+- Add initial support for Redis Cluster.
+
 Schema Changes
 ~~~~~~~~~~~~~~
 - Added index on ``ProjectPlatform(last_seen)`` column
