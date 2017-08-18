@@ -1,28 +1,24 @@
-import {browserHistory} from 'react-router';
-import React, {PropTypes} from 'react';
+import React from 'react';
 import Reflux from 'reflux';
 
 import {t} from '../../locale';
+import ApiMixin from '../../mixins/apiMixin';
+import MergedList from './mergedList';
 import GroupingActions from '../../actions/groupingActions';
 import GroupingStore from '../../stores/groupingStore';
 import LoadingError from '../../components/loadingError';
 import LoadingIndicator from '../../components/loadingIndicator';
-import SimilarList from './similarList';
 
-const GroupGroupingView = React.createClass({
-  propTypes: {
-    query: PropTypes.string
-  },
-
-  mixins: [Reflux.listenTo(GroupingStore, 'onGroupingUpdate')],
+const GroupMergedView = React.createClass({
+  mixins: [ApiMixin, Reflux.listenTo(GroupingStore, 'onGroupingUpdate')],
 
   getInitialState() {
+    let queryParams = this.props.location.query;
     return {
-      similarItems: [],
-      filteredSimilarItems: [],
-      similarLinks: [],
+      mergedItems: [],
       loading: true,
-      error: false
+      error: false,
+      query: queryParams.query || ''
     };
   },
 
@@ -35,65 +31,59 @@ const GroupGroupingView = React.createClass({
       nextProps.params.groupId !== this.props.params.groupId ||
       nextProps.location.search !== this.props.location.search
     ) {
-      this.fetchData();
+      let queryParams = nextProps.location.query;
+      this.setState(
+        {
+          query: queryParams.query
+        },
+        this.fetchData
+      );
     }
   },
 
-  onGroupingUpdate({
-    mergedParent,
-    similarItems,
-    similarLinks,
-    filteredSimilarItems,
-    loading,
-    error
-  }) {
-    if (similarItems) {
+  onGroupingUpdate({mergedItems, mergedLinks, loading, error}) {
+    if (mergedItems) {
       this.setState({
-        similarItems,
-        similarLinks,
-        filteredSimilarItems,
+        mergedItems,
+        mergedLinks,
         loading: typeof loading !== 'undefined' ? loading : false,
         error: typeof error !== 'undefined' ? error : false
       });
-    } else if (mergedParent && mergedParent !== this.props.params.groupId) {
-      // Merge success, since we can't specify target, we need to redirect to new parent
-      browserHistory.push(`/issues/${mergedParent}/similar/`);
     }
   },
 
-  getEndpoint(type = 'similar') {
+  getEndpoint(type = 'hashes') {
     let params = this.props.params;
     let queryParams = {
       ...this.props.location.query,
-      limit: 50
+      limit: 50,
+      query: this.state.query
     };
+
     return `/issues/${params.groupId}/${type}/?${jQuery.param(queryParams)}`;
   },
 
   fetchData() {
-    this.setState({
-      loading: true,
-      error: false
-    });
-
     GroupingActions.fetch([
       {
-        endpoint: this.getEndpoint('similar'),
-        dataKey: 'similar',
+        endpoint: this.getEndpoint('hashes'),
+        dataKey: 'merged',
         queryParams: this.props.location.query
       }
     ]);
   },
 
-  handleMerge() {
-    const {query, params} = this.props;
+  handleCollapse(...args) {
+    GroupingActions.collapseFingerprints();
+  },
 
-    if (params) {
-      GroupingActions.merge({
-        params,
-        query
-      });
-    }
+  handleUnmerge(...args) {
+    GroupingActions.unmerge({
+      groupId: this.props.params.groupId,
+      loadingMessage: `${t('Unmerging events')}...`,
+      successMessage: t('Events successfully queued for unmerging.'),
+      errorMessage: t('Unable to queue events for unmerging.')
+    });
   },
 
   render() {
@@ -116,19 +106,21 @@ const GroupGroupingView = React.createClass({
         {isError && <LoadingError message={this.state.error} onRetry={this.fetchData} />}
 
         {isLoadedSuccessfully &&
-          <SimilarList
-            items={this.state.similarItems}
-            filteredItems={this.state.filteredSimilarItems}
-            onMerge={this.handleMerge}
+          <MergedList
+            items={this.state.mergedItems}
             orgId={orgId}
             projectId={projectId}
             groupId={groupId}
-            pageLinks={this.state.similarLinks}
+            pageLinks={this.state.mergedLinks}
+            busyMap={this.state.busy}
+            hiddenMap={this.state.hidden}
+            onUnmerge={this.handleUnmerge}
+            onCollapse={GroupingActions.collapseFingerprints}
+            onExpand={GroupingActions.expandFingerprints}
           />}
-
       </div>
     );
   }
 });
 
-export default GroupGroupingView;
+export default GroupMergedView;

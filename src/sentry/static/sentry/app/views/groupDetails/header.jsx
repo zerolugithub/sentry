@@ -11,7 +11,6 @@ import ShortId from '../../components/shortId';
 import EventOrGroupTitle from '../../components/eventOrGroupTitle';
 import ProjectState from '../../mixins/projectState';
 import TooltipMixin from '../../mixins/tooltip';
-import ConfigStore from '../../stores/configStore';
 import {t} from '../../locale';
 
 const GroupHeader = React.createClass({
@@ -98,6 +97,7 @@ const GroupHeader = React.createClass({
   render() {
     let group = this.props.group,
       orgFeatures = new Set(this.getOrganization().features),
+      projectFeatures = this.getProjectFeatures(),
       userCount = group.userCount;
 
     let className = 'group-detail';
@@ -120,9 +120,8 @@ const GroupHeader = React.createClass({
       orgId = this.getOrganization().slug;
     let message = this.getMessage();
 
-    let hasSimView = ConfigStore.getConfig().features.has('similarity-view');
-
-    let hasGroupingView = hasSimView || orgFeatures.has('group-unmerge');
+    let hasSimilarView = projectFeatures.has('similarity-view');
+    let hasMergeView = orgFeatures.has('group-unmerge');
 
     return (
       <div className={className}>
@@ -229,7 +228,11 @@ const GroupHeader = React.createClass({
           <ListLink to={`/${orgId}/${projectId}/issues/${groupId}/events/`}>
             {t('Events')}
           </ListLink>
-          {hasGroupingView &&
+          {hasMergeView &&
+            <ListLink to={`/${orgId}/${projectId}/issues/${groupId}/merged/`}>
+              {t('Merged')}
+            </ListLink>}
+          {hasSimilarView &&
             <ListLink to={`/${orgId}/${projectId}/issues/${groupId}/similar/`}>
               {t('Similar Issues')}
             </ListLink>}

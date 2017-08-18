@@ -1,15 +1,16 @@
 import React, {PropTypes} from 'react';
 
-import {t} from '../../locale';
 import {Event} from '../../proptypes';
-
-import Pagination from '../../components/pagination';
+import {t} from '../../locale';
 import MergedItem from './mergedItem';
 import MergedToolbar from './mergedToolbar';
+import Pagination from '../../components/pagination';
+import QueryCount from '../../components/queryCount';
 
 const MergedList = React.createClass({
   propTypes: {
     onUnmerge: PropTypes.func.isRequired,
+    onCollapse: PropTypes.func.isRequired,
     items: PropTypes.arrayOf(Event),
     pageLinks: PropTypes.string
   },
@@ -24,20 +25,26 @@ const MergedList = React.createClass({
   },
 
   render() {
-    let {items, pageLinks, onUnmerge, ...otherProps} = this.props;
-    let hasResults = items.length > 0;
+    let {items, pageLinks, onCollapse, onUnmerge, ...otherProps} = this.props;
+    let itemsWithLatestEvent = items.filter(({latestEvent}) => !!latestEvent);
+    let hasResults = itemsWithLatestEvent.length > 0;
 
     if (hasResults) {
       return (
-        <div className="grouping-list-container grouping-merged-list-container">
-          <h2>{t('Merged with this Issue')}</h2>
-          <MergedToolbar onUnmerge={onUnmerge} />
+        <div className="merged-list-container">
+          <h2>
+            <span>{t('Merged fingerprints with latest event')}</span>
+            <QueryCount count={itemsWithLatestEvent.length} />
+          </h2>
 
-          <div className="grouping-list">
-            {items.map(({id, latestEvent}) => (
+          <MergedToolbar onCollapse={onCollapse} onUnmerge={onUnmerge} />
+
+          <div className="merged-list">
+            {itemsWithLatestEvent.map(({id, latestEvent}) => (
               <MergedItem
                 key={id}
                 {...otherProps}
+                disabled={items.length === 1}
                 event={latestEvent}
                 fingerprint={id}
                 itemCount={items.length}

@@ -50,8 +50,8 @@ const ScoreBar = React.createClass({
 
     // Size of bar, depends on orientation, although we could just apply a transformation via css
     let sizeStyle = {
-      [vertical ? 'height' : 'width']: size,
-      [vertical ? 'width' : 'height']: thickness
+      [vertical ? 'width' : 'height']: size,
+      [vertical ? 'height' : 'width']: thickness
     };
 
     let style = {
