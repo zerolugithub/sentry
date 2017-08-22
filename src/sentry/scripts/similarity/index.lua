@@ -256,6 +256,14 @@ local function get_key_prefix(configuration, index)
     )
 end
 
+local function get_frequency_key(configuration, index, item)
+    return string.format(
+        '%s:f:%s',
+        get_key_prefix(configuration, index),
+        item
+    )
+end
+
 local function get_bucket_frequency_key(configuration, index, time, band, item)
     return string.format(
         '%s:f:%s:%s:%s',
@@ -370,45 +378,64 @@ local function fetch_candidates(configuration, time_series, index, threshold, fr
     return results
 end
 
-local function fetch_bucket_frequencies(configuration, time_series, index, key)
+local function pack_frequency_coordinate(band, bucket)
+    return struct.pack('>B', band) .. bucket
+end
+
+local function unpack_frequency_coordinate(field)
+    local band, index = struct.unpack('>B', field)
+    return band, string.sub(field, index)
+end
+
+local function get_frequencies(configuration, index, item)
+    local frequencies = {}
+    for i = 1, configuration.bands do
+        frequencies[i] = {}
+    end
+
+    local key = get_frequency_key(configuration, index, item)
+    local response = redis.call('HGETALL', key)
+    for field, value in redis_hash_response_iterator(response) do
+        local band, bucket = unpack_frequency_coordinate(field)
+        frequencies[band][bucket] = tonumber(value)
+    end
+
+    return frequencies
+end
+
+local function set_frequencies(configuration, index, item, frequencies)
+    local key = get_frequency_key(configuration, index, item)
+
+    for band, buckets in ipairs(frequencies) do
+        for bucket, count in pairs(buckets) do
+            local field = pack_frequency_coordinate(band, bucket)
+            redis.call('HINCRBY', key, field, count)
+        end
+    end
+
+    -- TODO: This is less accurate than it could be at this point -- it should
+    -- probably just emulate the TTL behavior of the application.
+    local expiration = get_index_expiration_time(
+        configuration.interval,
+        configuration.retention,
+        math.floor(configuration.timestamp / configuration.interval)
+    )
+    redis.call('EXPIREAT', key, expiration)
+end
+
+local function clear_frequencies(configuration, index, item)
+    local key = get_frequency_key(configuration, index, item)
+    redis.call('DEL', key)
+end
+
+local function fetch_bucket_frequencies(configuration, time_series, index, item)
     --[[
     Fetches all of the bucket frequencies for a key from a specific index from
     all active time series chunks. This returns an array-like table that
     contains one table for each band that maps bucket identifiers to counts
     across the entire time series.
     ]]--
-    return table.imap(
-        range(1, configuration.bands),
-        function (band)
-            return table.ireduce(
-                table.imap(
-                    time_series,
-                    function (time)
-                        return redis_hgetall_response_to_table(
-                            redis.call(
-                                'HGETALL',
-                                get_bucket_frequency_key(
-                                    configuration,
-                                    index,
-                                    time,
-                                    band,
-                                    key
-                                )
-                            ),
-                            tonumber
-                        )
-                    end
-                ),
-                function (result, response)
-                    for bucket, count in pairs(response) do
-                        result[bucket] = (result[bucket] or 0) + count
-                    end
-                    return result
-                end,
-                {}
-            )
-        end
-    )
+    return get_frequencies(configuration, index, item)
 end
 
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
@@ -531,8 +558,10 @@ local commands = {
             function (signature)
                 local results = {}
 
+                set_frequencies(configuration, signature.index, key, signature.frequencies)
+
                 for band, buckets in ipairs(signature.frequencies) do
-                    for bucket, count in pairs(buckets) do
+                    for bucket in pairs(buckets) do
                         local bucket_membership_key = get_bucket_membership_key(
                             configuration,
                             signature.index,
@@ -542,19 +571,6 @@ local commands = {
                         )
                         redis.call('SADD', bucket_membership_key, key)
                         redis.call('EXPIREAT', bucket_membership_key, expiration)
-
-                        local bucket_frequency_key = get_bucket_frequency_key(
-                            configuration,
-                            signature.index,
-                            time,
-                            band,
-                            key
-                        )
-                        table.insert(
-                            results,
-                            tonumber(redis.call('HINCRBY', bucket_frequency_key, bucket, count))
-                        )
-                        redis.call('EXPIREAT', bucket_frequency_key, expiration)
                     end
                 end
 
@@ -733,22 +749,12 @@ local commands = {
         )
 
         for _, source in ipairs(sources) do
-            for band = 1, configuration.bands do
+            local frequencies = get_frequencies(configuration, source.index, source.key)
+            clear_frequencies(configuration, source.index, source.key)
+
+            for band, buckets in ipairs(frequencies) do
                 for _, time in ipairs(time_series) do
-                    local source_bucket_frequency_key = get_bucket_frequency_key(
-                        configuration,
-                        source.index,
-                        time,
-                        band,
-                        source.key
-                    )
-
-                    local buckets = redis.call(
-                        'HKEYS',
-                        source_bucket_frequency_key
-                    )
-
-                    for _, bucket in ipairs(buckets) do
+                    for bucket in pairs(buckets) do
                         redis.call(
                             'SREM',
                             get_bucket_membership_key(
@@ -761,9 +767,6 @@ local commands = {
                             source.key
                         )
                     end
-
-                    -- We no longer need the source frequencies.
-                    redis.call('DEL', source_bucket_frequency_key)
                 end
             end
         end
