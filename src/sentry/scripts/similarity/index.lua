@@ -227,13 +227,6 @@ function TimeSeriesSet:add(...)
     return result
 end
 
-function TimeSeriesSet:remove(...)
-    local current = math.floor(self.timestamp / self.interval)
-    for index = current - self.retention, current do
-        redis.call('SREM', self.key_function(index), ...)
-    end
-end
-
 function TimeSeriesSet:members()
     local results = {}
     local current = math.floor(self.timestamp / self.interval)
@@ -245,6 +238,13 @@ function TimeSeriesSet:members()
         end
     end
     return results
+end
+
+function TimeSeriesSet:remove(...)
+    local current = math.floor(self.timestamp / self.interval)
+    for index = current - self.retention, current do
+        redis.call('SREM', self.key_function(index), ...)
+    end
 end
 
 
@@ -662,79 +662,18 @@ local commands = {
             end)
         )(cursor, arguments)
 
-        local time_series = get_active_indices(
-            configuration.interval,
-            configuration.retention,
-            configuration.timestamp
-        )
-
         for _, source in ipairs(sources) do
-            for band = 1, configuration.bands do
-                for _, time in ipairs(time_series) do
-                    local source_bucket_frequency_key = get_bucket_frequency_key(
-                        configuration,
-                        source.index,
-                        time,
-                        band,
-                        source.key
-                    )
-                    local destination_bucket_frequency_key = get_bucket_frequency_key(
-                        configuration,
-                        source.index,
-                        time,
-                        band,
-                        destination_key
-                    )
-                    local expiration_time = get_index_expiration_time(
-                        configuration.interval,
-                        configuration.retention,
-                        time
-                    )
+            local frequencies = get_frequencies(configuration, source.index, source.key)
+            set_frequencies(configuration, source.index, destination_key, frequencies)
+            clear_frequencies(configuration, source.index, source.key)
 
-                    local response = redis_hgetall_response_to_table(
-                        redis.call(
-                            'HGETALL',
-                            source_bucket_frequency_key
-                        ),
-                        tonumber
-                    )
-
-                    for bucket, count in pairs(response) do
-                        -- Remove the source from the bucket membership
-                        -- set, and add the destination to the membership
-                        -- set.
-                        local bucket_membership_key = get_bucket_membership_key(
-                            configuration,
-                            source.index,
-                            time,
-                            band,
-                            bucket
-                        )
-                        redis.call('SREM', bucket_membership_key, source.key)
-                        redis.call('SADD', bucket_membership_key, destination_key)
-                        redis.call('EXPIREAT', bucket_membership_key, expiration_time)
-
-                        -- Merge the counter values into the destination frequencies.
-                        redis.call(
-                            'HINCRBY',
-                            destination_bucket_frequency_key,
-                            bucket,
-                            count
-                        )
-                    end
-
-                    -- TODO: We only need to do this if the bucket has contents.
-                    -- The destination bucket frequency key may have not
-                    -- existed previously, so we need to make sure we set
-                    -- the expiration on it in case it is new.
-                    redis.call(
-                        'EXPIREAT',
-                        destination_bucket_frequency_key,
-                        expiration_time
-                    )
-
-                    -- We no longer need the source frequencies.
-                    redis.call('DEL', source_bucket_frequency_key)
+            for band, buckets in ipairs(frequencies) do
+                for bucket in pairs(buckets) do
+                    -- TODO: It'd be nice if these maintained the previous TTL
+                    -- and set slices instead of clobbering them
+                    local bucket_membership_set = get_bucket_membership_set(configuration, source.index, band, bucket)
+                    bucket_membership_set:remove(source.key)
+                    bucket_membership_set:add(destination_key)
                 end
             end
         end
