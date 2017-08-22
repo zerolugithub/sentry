@@ -224,13 +224,22 @@ end
 
 -- Redis Helpers
 
+local function redis_hash_response_iterator(response)
+    local i = 1
+    return function ()
+        local key, value = response[i], response[i + 1]
+        i = i + 2
+        return key, value
+    end
+end
+
 local function redis_hgetall_response_to_table(response, value_type)
     if value_type == nil then
         value_type = identity
     end
     local result = {}
-    for i = 1, #response, 2 do
-        result[response[i]] = value_type(response[i + 1])
+    for key, value in redis_hash_response_iterator(response) do
+        result[key] = value_type(value)
     end
     return result
 end
