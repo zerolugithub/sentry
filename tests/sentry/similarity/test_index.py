@@ -42,11 +42,17 @@ class MinHashIndexTestCase(TestCase):
         assert results[3][0] in ('3', '4')
         assert results[4][0] == '5'
 
+        results = self.index.compare('example', '1', [('index', 6)])[0]
+        raise NotImplementedError
+
         results = self.index.classify('example', [('index', 0, 'hello world')])[0]
         assert results[0:2] == [('1', 1.0), ('2', 1.0)]
         assert results[2][0] in ('3', '4')  # equidistant pairs, order doesn't really matter
         assert results[3][0] in ('3', '4')
         assert results[4][0] == '5'
+
+        results = self.index.classify('example', [('index', 6, 'hello world')])[0]
+        raise NotImplementedError
 
         self.index.delete('example', [('index', '3')])
         assert [key
