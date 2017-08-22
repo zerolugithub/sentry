@@ -543,6 +543,7 @@ local commands = {
             variadic_argument_parser(
                 object_argument_parser({
                     {"index", argument_parser(validate_value)},
+                    {"threshold", argument_parser(validate_integer)},
                     {"frequencies", frequencies_argument_parser(configuration)},
                 })
             )
@@ -571,7 +572,10 @@ local commands = {
         local cursor, item_key, indices = multiple_argument_parser(
             argument_parser(validate_value),
             variadic_argument_parser(
-                argument_parser(validate_value)
+                object_argument_parser({
+                    {"index", argument_parser(validate_value)},
+                    {"threshold", argument_parser(validate_integer)},
+                })
             )
         )(cursor, arguments)
 
@@ -587,11 +591,11 @@ local commands = {
                 local results = fetch_similar(
                     configuration,
                     time_series,
-                    index,
+                    index.index,
                     fetch_bucket_frequencies(
                         configuration,
                         time_series,
-                        index,
+                        index.index,
                         item_key
                     )
                 )
