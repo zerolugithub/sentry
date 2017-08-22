@@ -247,6 +247,7 @@ function TimeSeriesSet:members()
     return results
 end
 
+
 -- Time Series
 
 local function get_active_indices(interval, retention, timestamp)
@@ -309,6 +310,7 @@ local function get_frequency_key(configuration, index, item)
 end
 
 local function get_bucket_frequency_key(configuration, index, time, band, item)
+    error('needs removal')
     return string.format(
         '%s:f:%s:%s:%s',
         get_key_prefix(configuration, index),
@@ -319,6 +321,7 @@ local function get_bucket_frequency_key(configuration, index, time, band, item)
 end
 
 local function get_bucket_membership_key(configuration, index, time, band, bucket)
+    error('needs removal')
     return string.format(
         '%s:m:%s:%s:%s',
         get_key_prefix(configuration, index),
@@ -432,8 +435,8 @@ local function fetch_candidates(configuration, index, threshold, frequencies)
     frequencies. The frequencies should be structured as an array-like table,
     with one table for each band that represents the number of times that
     bucket has been associated with the target object. (This is also the output
-    structure of `fetch_bucket_frequencies`.) For example, a four-band
-    request with two recorded observations may be strucured like this:
+    structure of `get_frequencies`.) For example, a four-band request with two
+    recorded observations may be strucured like this:
 
     {
         {a=1, b=1},
@@ -474,16 +477,6 @@ local function fetch_candidates(configuration, index, threshold, frequencies)
     end
 
     return results
-end
-
-local function fetch_bucket_frequencies(configuration, index, item)
-    --[[
-    Fetches all of the bucket frequencies for a key from a specific index from
-    all active time series chunks. This returns an array-like table that
-    contains one table for each band that maps bucket identifiers to counts
-    across the entire time series.
-    ]]--
-    return get_frequencies(configuration, index, item)
 end
 
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
@@ -532,13 +525,13 @@ end
 local function fetch_similar(configuration, index, threshold, item_frequencies)
     --[[
     Fetch the items that are similar to an item's frequencies (as returned by
-    `fetch_bucket_frequencies`), returning a table of similar items keyed by
+    `get_frequencies`), returning a table of similar items keyed by
     the candidate key where the value is on a [0, 1] similarity scale.
     ]]--
     local candidates = fetch_candidates(configuration, index, threshold, item_frequencies)
     local candidate_frequencies = {}
     for candidate_key, _ in pairs(candidates) do
-        candidate_frequencies[candidate_key] = fetch_bucket_frequencies(
+        candidate_frequencies[candidate_key] = get_frequencies(
             configuration,
             index,
             candidate_key
@@ -647,7 +640,7 @@ local commands = {
                     configuration,
                     index.index,
                     index.threshold,
-                    fetch_bucket_frequencies(
+                    get_frequencies(
                         configuration,
                         index.index,
                         item_key
