@@ -203,6 +203,50 @@ local function frequencies_argument_parser(configuration)
 end
 
 
+-- Time Series Set
+
+local TimeSeriesSet = {}
+
+function TimeSeriesSet:new(interval, retention, timestamp, key_function)
+    return setmetatable({
+        interval = interval,
+        retention = retention,
+        timestamp = timestamp,
+        key_function = key_function,
+    }, {__index = self})
+end
+
+function TimeSeriesSet:add(...)
+    local index = math.floor(self.timestamp / self.interval)
+    local key = self.key_function(index)
+    local result = redis.call('SADD', key, ...)
+    if result > 0 then
+        -- The expiration only needs updating if we've actually added anything.
+        redis.call('EXPIREAT', key, (index + 1 + self.retention) * self.interval)
+    end
+    return result
+end
+
+function TimeSeriesSet:remove(...)
+    local current = math.floor(self.timestamp / self.interval)
+    for index = current - self.retention, current do
+        redis.call('SREM', self.key_function(index), ...)
+    end
+end
+
+function TimeSeriesSet:members()
+    local results = {}
+    local current = math.floor(self.timestamp / self.interval)
+    for index = current - self.retention, current do
+        local members = redis.call('SMEMBERS', self.key_function(index))
+        for i = 1, #members do
+            local k = members[i]
+            results[k] = (results[k] or 0) + 1
+        end
+    end
+    return results
+end
+
 -- Time Series
 
 local function get_active_indices(interval, retention, timestamp)
@@ -317,67 +361,6 @@ end
 
 -- Signature Matching
 
-local function fetch_candidates(configuration, time_series, index, threshold, frequencies)
-    --[[
-    Fetch all possible keys that share some characteristics with the provided
-    frequencies. The frequencies should be structured as an array-like table,
-    with one table for each band that represents the number of times that
-    bucket has been associated with the target object. (This is also the output
-    structure of `fetch_bucket_frequencies`.) For example, a four-band
-    request with two recorded observations may be strucured like this:
-
-    {
-        {a=1, b=1},
-        {a=2},
-        {b=2},
-        {a=1, d=1},
-    }
-
-    Results are returned as table where the keys represent candidate keys.
-    ]]--
-    local candidates = {}
-    for band, buckets in ipairs(frequencies) do
-        for bucket, count in pairs(buckets) do
-            for _, time in ipairs(time_series) do
-                -- Fetch all other items that have been added to
-                -- the same bucket in this band during this time
-                -- period.
-                local members = redis.call(
-                    'SMEMBERS',
-                    get_bucket_membership_key(
-                        configuration,
-                        index,
-                        time,
-                        band,
-                        bucket
-                    )
-                )
-                for _, member in ipairs(members) do
-                    local bands = candidates[member]
-                    if bands == nil then
-                        bands = {}  -- acts as a set
-                        candidates[member] = bands
-                    end
-                    bands[band] = true
-                end
-            end
-        end
-    end
-
-    local results = {}
-    for candidate, bands in pairs(candidates) do
-        local hits = 0
-        for _ in pairs(bands) do
-            hits = hits + 1
-        end
-        if hits >= threshold then
-            results[candidate] = hits
-        end
-    end
-
-    return results
-end
-
 local function pack_frequency_coordinate(band, bucket)
     return struct.pack('>B', band) .. bucket
 end
@@ -385,6 +368,21 @@ end
 local function unpack_frequency_coordinate(field)
     local band, index = struct.unpack('>B', field)
     return band, string.sub(field, index)
+end
+
+local function get_bucket_membership_set(configuration, index, band, bucket)
+    return TimeSeriesSet:new(
+        configuration.interval,
+        configuration.retention,
+        configuration.timestamp,
+        function (i)
+            return string.format(
+                '%s:m:%s:',
+                get_key_prefix(configuration, index),
+                i
+            ) .. pack_frequency_coordinate(band, bucket)
+        end
+    )
 end
 
 local function get_frequencies(configuration, index, item)
@@ -428,7 +426,57 @@ local function clear_frequencies(configuration, index, item)
     redis.call('DEL', key)
 end
 
-local function fetch_bucket_frequencies(configuration, time_series, index, item)
+local function fetch_candidates(configuration, index, threshold, frequencies)
+    --[[
+    Fetch all possible keys that share some characteristics with the provided
+    frequencies. The frequencies should be structured as an array-like table,
+    with one table for each band that represents the number of times that
+    bucket has been associated with the target object. (This is also the output
+    structure of `fetch_bucket_frequencies`.) For example, a four-band
+    request with two recorded observations may be strucured like this:
+
+    {
+        {a=1, b=1},
+        {a=2},
+        {b=2},
+        {a=1, d=1},
+    }
+
+    Results are returned as table where the keys represent candidate keys.
+    ]]--
+    local candidates = {}
+    for band, buckets in ipairs(frequencies) do
+        for bucket in pairs(buckets) do
+            -- Fetch all other items that have been added to
+            -- the same bucket in this band during this time
+            -- period.
+            local members = get_bucket_membership_set(configuration, index, band, bucket):members()
+            for member in pairs(members) do
+                local bands = candidates[member]
+                if bands == nil then
+                    bands = {}  -- acts as a set
+                    candidates[member] = bands
+                end
+                bands[band] = true
+            end
+        end
+    end
+
+    local results = {}
+    for candidate, bands in pairs(candidates) do
+        local hits = 0
+        for _ in pairs(bands) do
+            hits = hits + 1
+        end
+        if hits >= threshold then
+            results[candidate] = hits
+        end
+    end
+
+    return results
+end
+
+local function fetch_bucket_frequencies(configuration, index, item)
     --[[
     Fetches all of the bucket frequencies for a key from a specific index from
     all active time series chunks. This returns an array-like table that
@@ -481,18 +529,17 @@ local function calculate_similarity(configuration, item_frequencies, candidate_f
     return results
 end
 
-local function fetch_similar(configuration, time_series, index, threshold, item_frequencies)
+local function fetch_similar(configuration, index, threshold, item_frequencies)
     --[[
     Fetch the items that are similar to an item's frequencies (as returned by
     `fetch_bucket_frequencies`), returning a table of similar items keyed by
     the candidate key where the value is on a [0, 1] similarity scale.
     ]]--
-    local candidates = fetch_candidates(configuration, time_series, index, threshold, item_frequencies)
+    local candidates = fetch_candidates(configuration, index, threshold, item_frequencies)
     local candidate_frequencies = {}
     for candidate_key, _ in pairs(candidates) do
         candidate_frequencies[candidate_key] = fetch_bucket_frequencies(
             configuration,
-            time_series,
             index,
             candidate_key
         )
@@ -546,35 +593,15 @@ local commands = {
             )
         )(cursor, arguments)
 
-        local time = math.floor(configuration.timestamp / configuration.interval)
-        local expiration = get_index_expiration_time(
-            configuration.interval,
-            configuration.retention,
-            time
-        )
-
         return table.imap(
             signatures,
             function (signature)
-                local results = {}
-
                 set_frequencies(configuration, signature.index, key, signature.frequencies)
-
                 for band, buckets in ipairs(signature.frequencies) do
                     for bucket in pairs(buckets) do
-                        local bucket_membership_key = get_bucket_membership_key(
-                            configuration,
-                            signature.index,
-                            time,
-                            band,
-                            bucket
-                        )
-                        redis.call('SADD', bucket_membership_key, key)
-                        redis.call('EXPIREAT', bucket_membership_key, expiration)
+                        get_bucket_membership_set(configuration, signature.index, band, bucket):add(key)
                     end
                 end
-
-                return results
             end
         )
     end,
@@ -589,18 +616,11 @@ local commands = {
             )
         )(cursor, arguments)
 
-        local time_series = get_active_indices(
-            configuration.interval,
-            configuration.retention,
-            configuration.timestamp
-        )
-
         return table.imap(
             signatures,
             function (signature)
                 local results = fetch_similar(
                     configuration,
-                    time_series,
                     signature.index,
                     signature.threshold,
                     signature.frequencies
@@ -620,23 +640,15 @@ local commands = {
             )
         )(cursor, arguments)
 
-        local time_series = get_active_indices(
-            configuration.interval,
-            configuration.retention,
-            configuration.timestamp
-        )
-
         return table.imap(
             indices,
             function (index)
                 local results = fetch_similar(
                     configuration,
-                    time_series,
                     index.index,
                     index.threshold,
                     fetch_bucket_frequencies(
                         configuration,
-                        time_series,
                         index.index,
                         item_key
                     )
@@ -742,31 +754,13 @@ local commands = {
             })
         )(cursor, arguments)
 
-        local time_series = get_active_indices(
-            configuration.interval,
-            configuration.retention,
-            configuration.timestamp
-        )
-
         for _, source in ipairs(sources) do
             local frequencies = get_frequencies(configuration, source.index, source.key)
             clear_frequencies(configuration, source.index, source.key)
 
             for band, buckets in ipairs(frequencies) do
-                for _, time in ipairs(time_series) do
-                    for bucket in pairs(buckets) do
-                        redis.call(
-                            'SREM',
-                            get_bucket_membership_key(
-                                configuration,
-                                source.index,
-                                time,
-                                band,
-                                bucket
-                            ),
-                            source.key
-                        )
-                    end
+                for bucket in pairs(buckets) do
+                    get_bucket_membership_set(configuration, source.index, band, bucket):remove(source.key)
                 end
             end
         end
