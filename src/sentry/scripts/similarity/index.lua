@@ -318,11 +318,7 @@ local function fetch_candidates(configuration, time_series, index, threshold, fr
 
     Results are returned as table where the keys represent candidate keys.
     ]]--
-    if threshold > 0 then
-        error('thresholding not implemented')
-    end
-
-    local candidates = {}  -- acts as a set
+    local candidates = {}
     for band, buckets in ipairs(frequencies) do
         for bucket, count in pairs(buckets) do
             for _, time in ipairs(time_series) do
@@ -340,14 +336,29 @@ local function fetch_candidates(configuration, time_series, index, threshold, fr
                     )
                 )
                 for _, member in ipairs(members) do
-                    -- TODO: Count the number of bands that we've collided in
-                    -- to allow setting thresholds here.
-                    candidates[member] = true
+                    local bands = candidates[member]
+                    if bands == nil then
+                        bands = {}  -- acts as a set
+                        candidates[member] = bands
+                    end
+                    bands[band] = true
                 end
             end
         end
     end
-    return candidates
+
+    local results = {}
+    for candidate, bands in pairs(candidates) do
+        local hits = 0
+        for _ in pairs(bands) do
+            hits = hits + 1
+        end
+        if hits >= threshold then
+            results[candidate] = hits
+        end
+    end
+
+    return results
 end
 
 local function fetch_bucket_frequencies(configuration, time_series, index, key)
