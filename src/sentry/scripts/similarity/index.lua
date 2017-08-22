@@ -300,7 +300,7 @@ end
 
 -- Signature Matching
 
-local function fetch_candidates(configuration, time_series, index, frequencies)
+local function fetch_candidates(configuration, time_series, index, threshold, frequencies)
     --[[
     Fetch all possible keys that share some characteristics with the provided
     frequencies. The frequencies should be structured as an array-like table,
@@ -318,6 +318,10 @@ local function fetch_candidates(configuration, time_series, index, frequencies)
 
     Results are returned as table where the keys represent candidate keys.
     ]]--
+    if threshold > 0 then
+        error('thresholding not implemented')
+    end
+
     local candidates = {}  -- acts as a set
     for band, buckets in ipairs(frequencies) do
         for bucket, count in pairs(buckets) do
@@ -430,13 +434,13 @@ local function calculate_similarity(configuration, item_frequencies, candidate_f
     return results
 end
 
-local function fetch_similar(configuration, time_series, index, item_frequencies)
+local function fetch_similar(configuration, time_series, index, threshold, item_frequencies)
     --[[
     Fetch the items that are similar to an item's frequencies (as returned by
     `fetch_bucket_frequencies`), returning a table of similar items keyed by
     the candidate key where the value is on a [0, 1] similarity scale.
     ]]--
-    local candidates = fetch_candidates(configuration, time_series, index, item_frequencies)
+    local candidates = fetch_candidates(configuration, time_series, index, threshold, item_frequencies)
     local candidate_frequencies = {}
     for candidate_key, _ in pairs(candidates) do
         candidate_frequencies[candidate_key] = fetch_bucket_frequencies(
@@ -562,6 +566,7 @@ local commands = {
                     configuration,
                     time_series,
                     signature.index,
+                    signature.threshold,
                     signature.frequencies
                 )
                 return as_search_response(results)
@@ -592,6 +597,7 @@ local commands = {
                     configuration,
                     time_series,
                     index.index,
+                    index.threshold,
                     fetch_bucket_frequencies(
                         configuration,
                         time_series,
