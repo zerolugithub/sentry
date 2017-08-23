@@ -247,10 +247,18 @@ function TimeSeriesSet:remove(...)
 end
 
 function TimeSeriesSet:swap(old, new)
+    --[[
+    Replace the "old" member wtih the "new" member in all sets where it is
+    present.
+    ]]--
     local current = math.floor(self.timestamp / self.interval)
     for index = current - self.retention, current do
         local key = self.key_function(index)
-        if redis.call('SREM', key, old) and redis.call('SADD', key, new) then
+        if redis.call('SREM', key, old) > 0 and redis.call('SADD', key, new) > 0 then
+            -- It's possible that the `SREM` operation implicitly caused this
+            -- set to be deleted if it reached 0 elements, so we need to be
+            -- sure to reset the TTL if we successfully added the element to
+            -- the potentially empty set.
             redis.call('EXPIREAT', key, (index + 1 + self.retention) * self.interval)
         end
     end
