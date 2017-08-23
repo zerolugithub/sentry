@@ -298,28 +298,6 @@ local function get_frequency_key(configuration, index, item)
     )
 end
 
-local function get_bucket_frequency_key(configuration, index, time, band, item)
-    error('needs removal')
-    return string.format(
-        '%s:f:%s:%s:%s',
-        get_key_prefix(configuration, index),
-        time,
-        band,
-        item
-    )
-end
-
-local function get_bucket_membership_key(configuration, index, time, band, bucket)
-    error('needs removal')
-    return string.format(
-        '%s:m:%s:%s:%s',
-        get_key_prefix(configuration, index),
-        time,
-        band,
-        bucket
-    )
-end
-
 local function get_manhattan_distance(target, other)
     local keys = {}
     for k, _ in pairs(target) do
