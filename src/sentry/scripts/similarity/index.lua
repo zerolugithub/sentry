@@ -744,60 +744,22 @@ local commands = {
             object_argument_parser({
                 {'index', argument_parser(validate_value)},
                 {'key', argument_parser(validate_value)},
-                {'data', argument_parser(cmsgpack.unpack)}
+                {'frequencies', argument_parser(cmsgpack.unpack)}
             })
         )(cursor, arguments)
 
-        for _, entry in ipairs(entries) do
-            for band, data in ipairs(entry.data) do
-                for _, item in ipairs(data) do
-                    local time, buckets = item[1], item[2]
-                    local expiration_time = get_index_expiration_time(
-                        configuration.interval,
-                        configuration.retention,
-                        time
-                    )
-                    local destination_bucket_frequency_key = get_bucket_frequency_key(
-                        configuration,
-                        entry.index,
-                        time,
-                        band,
-                        entry.key
-                    )
-
+        return table.imap(
+            entries,
+            function (source)
+                -- TODO: Restore the TTL here?
+                set_frequencies(configuration, source.index, source.key, source.frequencies)
+                for band, buckets in ipairs(frequencies) do
                     for bucket, count in pairs(buckets) do
-                        local bucket_membership_key = get_bucket_membership_key(
-                            configuration,
-                            entry.index,
-                            time,
-                            band,
-                            bucket
-                        )
-                        redis.call('SADD', bucket_membership_key, entry.key)
-                        redis.call('EXPIREAT', bucket_membership_key, expiration_time)
-
-                        redis.call(
-                            'HINCRBY',
-                            destination_bucket_frequency_key,
-                            bucket,
-                            count
-                        )
-                    end
-
-                    -- The destination bucket frequency key may have not
-                    -- existed previously, so we need to make sure we set
-                    -- the expiration on it in case it is new. (We only
-                    -- have to do this if there we changed any bucket counts.)
-                    if next(buckets) ~= nil then
-                        redis.call(
-                            'EXPIREAT',
-                            destination_bucket_frequency_key,
-                            expiration_time
-                        )
+                        get_bucket_membership_set(configuration, source.index, band, bucket):add(source.key)
                     end
                 end
             end
-        end
+        )
     end,
     EXPORT = function (configuration, cursor, arguments)
         --[[
@@ -805,15 +767,7 @@ local commands = {
 
         Generally, this data should be treated as opaque method for extracting
         data to be provided to the ``IMPORT`` command. Exported data is
-        returned in the same order as the arguments are provided. Each item is
-        a messagepacked blob that is at the top level list, where each member
-        represents the data contained within one band.  Each item in the band
-        list is another list, where each member represents one time series
-        interval. Each item in the time series list is a tuple containing the
-        time series index and a mapping containing the counts for each bucket
-        within the interval. (Due to the Lua data model, an empty mapping will
-        be represented as an empty list. The consumer of this data must convert
-        it back to the correct type.)
+        returned in the same order as the arguments are provided.
         ]]--
         local cursor, entries = variadic_argument_parser(
             object_argument_parser({
@@ -828,37 +782,20 @@ local commands = {
             configuration.retention,
             configuration.timestamp
         )
+
         return table.imap(
             entries,
             function (source)
-                return cmsgpack.pack(
-                    table.imap(
-                        bands,
-                        function (band)
-                            return table.imap(
-                                time_series,
-                                function (time)
-                                    return {
-                                        time,
-                                        redis_hgetall_response_to_table(
-                                            redis.call(
-                                                'HGETALL',
-                                                get_bucket_frequency_key(
-                                                    configuration,
-                                                    source.index,
-                                                    time,
-                                                    band,
-                                                    source.key
-                                                )
-                                            ),
-                                            tonumber
-                                        ),
-                                    }
-                                end
-                            )
-                        end
-                    )
-                )
+                -- TODO: Preserve the TTL here?
+                local frequencies = get_frequencies(configuration, source.index, source.key)
+                local result = {}
+                for band, buckets in ipairs(frequencies) do
+                    result[band] = {}
+                    for bucket, count in pairs(buckets) do
+                        result[band][bucket] = count
+                    end
+                end
+                return cmsgpack.pack(result)
             end
         )
     end,
