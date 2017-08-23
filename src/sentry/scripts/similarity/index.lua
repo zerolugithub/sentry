@@ -465,6 +465,10 @@ local function fetch_candidates(configuration, index, threshold, frequencies, li
         end
     end
 
+    if count > limit then
+        error('hit limit')
+    end
+
     return results
 end
 
