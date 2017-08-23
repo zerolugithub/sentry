@@ -57,7 +57,7 @@ class MinHashIndexTestCase(TestCase):
         assert results[0] == ('1', 1.0)
         assert results[1] == ('2', 1.0)  # identical contents
 
-        # comparison, candidate limit
+        # comparison, candidate limit (with lexicographical collision sort)
         results = self.index.compare('example', '1', [('index', 0)], candidate_limit=1)[0]
         assert len(results) == 1
         assert results[0] == ('1', 1.0)
