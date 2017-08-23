@@ -416,7 +416,7 @@ local function clear_frequencies(configuration, index, item)
     redis.call('DEL', key)
 end
 
-local function fetch_candidates(configuration, index, threshold, frequencies)
+local function fetch_candidates(configuration, index, threshold, frequencies, limit)
     --[[
     Fetch all possible keys that share some characteristics with the provided
     frequencies. The frequencies should be structured as an array-like table,
@@ -452,6 +452,7 @@ local function fetch_candidates(configuration, index, threshold, frequencies)
         end
     end
 
+    local count = 0
     local results = {}
     for candidate, bands in pairs(candidates) do
         local hits = 0
@@ -460,7 +461,12 @@ local function fetch_candidates(configuration, index, threshold, frequencies)
         end
         if hits >= threshold then
             results[candidate] = hits
+            count = count + 1
         end
+    end
+
+    if count > limit then
+        error('hit limit')
     end
 
     return results
@@ -509,13 +515,13 @@ local function calculate_similarity(configuration, item_frequencies, candidate_f
     return results
 end
 
-local function fetch_similar(configuration, index, threshold, item_frequencies)
+local function fetch_similar(configuration, index, threshold, item_frequencies, candidate_limit)
     --[[
     Fetch the items that are similar to an item's frequencies (as returned by
     `get_frequencies`), returning a table of similar items keyed by
     the candidate key where the value is on a [0, 1] similarity scale.
     ]]--
-    local candidates = fetch_candidates(configuration, index, threshold, item_frequencies)
+    local candidates = fetch_candidates(configuration, index, threshold, item_frequencies, candidate_limit)
     local candidate_frequencies = {}
     for candidate_key, _ in pairs(candidates) do
         candidate_frequencies[candidate_key] = get_frequencies(
@@ -586,7 +592,8 @@ local commands = {
         )
     end,
     CLASSIFY = function (configuration, cursor, arguments)
-        local cursor, signatures = multiple_argument_parser(
+        local cursor, candidate_limit, signatures = multiple_argument_parser(
+            argument_parser(validate_integer),
             variadic_argument_parser(
                 object_argument_parser({
                     {"index", argument_parser(validate_value)},
@@ -603,14 +610,16 @@ local commands = {
                     configuration,
                     signature.index,
                     signature.threshold,
-                    signature.frequencies
+                    signature.frequencies,
+                    candidate_limit
                 )
                 return as_search_response(results)
             end
         )
     end,
     COMPARE = function (configuration, cursor, arguments)
-        local cursor, item_key, indices = multiple_argument_parser(
+        local cursor, candidate_limit, item_key, indices = multiple_argument_parser(
+            argument_parser(validate_integer),
             argument_parser(validate_value),
             variadic_argument_parser(
                 object_argument_parser({
@@ -631,7 +640,8 @@ local commands = {
                         configuration,
                         index.index,
                         item_key
-                    )
+                    ),
+                    candidate_limit
                 )
                 return as_search_response(results)
             end
