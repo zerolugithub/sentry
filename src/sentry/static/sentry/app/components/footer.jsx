@@ -1,3 +1,4 @@
+/* global process */
 import React from 'react';
 import ConfigStore from '../stores/configStore';
 import HookStore from '../stores/hookStore';
@@ -34,7 +35,7 @@ const Footer = React.createClass({
               <a className="hidden-xs" href="/out/">{t('Migrate to SaaS')}</a>}
           </div>
           <div className="version pull-left">
-            {'Sentry'} {config.version.current}
+            {'Sentry'} {process.env.IS_PERCY ? 'Acceptance Test' : config.version.current}
           </div>
           <a href="/" className="icon-sentry-logo" />
           {this.state.hooks}

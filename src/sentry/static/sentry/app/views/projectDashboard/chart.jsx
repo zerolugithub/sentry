@@ -1,3 +1,4 @@
+/* global process */
 import React from 'react';
 import moment from 'moment';
 import ApiMixin from '../../mixins/apiMixin';
@@ -107,7 +108,9 @@ const ProjectChart = React.createClass({
           className="standard-barchart"
         />
         <small className="date-legend">
-          {moment(this.props.dateSince * 1000).format('LL')}
+          {process.env.IS_PERCY
+            ? 'Test Date 1, 2000'
+            : moment(this.props.dateSince * 1000).format('LL')}
         </small>
       </div>
     );
