@@ -753,7 +753,7 @@ local commands = {
             function (source)
                 -- TODO: Restore the TTL here?
                 set_frequencies(configuration, source.index, source.key, source.frequencies)
-                for band, buckets in ipairs(frequencies) do
+                for band, buckets in ipairs(source.frequencies) do
                     for bucket, count in pairs(buckets) do
                         get_bucket_membership_set(configuration, source.index, band, bucket):add(source.key)
                     end
