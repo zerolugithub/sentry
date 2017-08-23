@@ -216,17 +216,6 @@ function TimeSeriesSet:new(interval, retention, timestamp, key_function)
     }, {__index = self})
 end
 
-function TimeSeriesSet:add(...)
-    local index = math.floor(self.timestamp / self.interval)
-    local key = self.key_function(index)
-    local result = redis.call('SADD', key, ...)
-    if result > 0 then
-        -- The expiration only needs updating if we've actually added anything.
-        redis.call('EXPIREAT', key, (index + 1 + self.retention) * self.interval)
-    end
-    return result
-end
-
 function TimeSeriesSet:members()
     local results = {}
     local current = math.floor(self.timestamp / self.interval)
@@ -240,10 +229,30 @@ function TimeSeriesSet:members()
     return results
 end
 
+function TimeSeriesSet:add(...)
+    local index = math.floor(self.timestamp / self.interval)
+    local key = self.key_function(index)
+    local result = redis.call('SADD', key, ...)
+    if result > 0 then
+        redis.call('EXPIREAT', key, (index + 1 + self.retention) * self.interval)
+    end
+    return result
+end
+
 function TimeSeriesSet:remove(...)
     local current = math.floor(self.timestamp / self.interval)
     for index = current - self.retention, current do
         redis.call('SREM', self.key_function(index), ...)
+    end
+end
+
+function TimeSeriesSet:swap(old, new)
+    local current = math.floor(self.timestamp / self.interval)
+    for index = current - self.retention, current do
+        local key = self.key_function(index)
+        if redis.call('SREM', key, old) and redis.call('SADD', key, new) then
+            redis.call('EXPIREAT', key, (index + 1 + self.retention) * self.interval)
+        end
     end
 end
 
@@ -422,6 +431,26 @@ local function set_frequencies(configuration, index, item, frequencies)
         math.floor(configuration.timestamp / configuration.interval)
     )
     redis.call('EXPIREAT', key, expiration)
+end
+
+local function merge_frequencies(configuration, index, source, destination)
+    local source_key = get_frequency_key(configuration, index, source)
+    local destination_key = get_frequency_key(configuration, index, destination)
+
+    local response = redis.call('HGETALL', source_key)
+    if not #response then
+        return  -- nothing to do
+    end
+
+    for field, value in redis_hash_response_iterator(response) do
+        redis.call('HINCRBY', destination_key, field, value)
+    end
+
+    local source_ttl = redis.call('TTL', source_key)
+    assert(source_ttl >= 0)  -- this ttl should not be 0 unless we messed up
+    redis.call('EXPIRE', destination_key, math.max(source_ttl, redis.call('TTL', destination_key)))
+
+    redis.call('DEL', source_key)
 end
 
 local function clear_frequencies(configuration, index, item)
@@ -663,17 +692,12 @@ local commands = {
         )(cursor, arguments)
 
         for _, source in ipairs(sources) do
-            local frequencies = get_frequencies(configuration, source.index, source.key)
-            set_frequencies(configuration, source.index, destination_key, frequencies)
-            clear_frequencies(configuration, source.index, source.key)
+            local source_frequencies = get_frequencies(configuration, source.index, source.key)
+            merge_frequencies(configuration, source.index, source.key, destination_key)
 
-            for band, buckets in ipairs(frequencies) do
+            for band, buckets in ipairs(source_frequencies) do
                 for bucket in pairs(buckets) do
-                    -- TODO: It'd be nice if these maintained the previous TTL
-                    -- and set slices instead of clobbering them
-                    local bucket_membership_set = get_bucket_membership_set(configuration, source.index, band, bucket)
-                    bucket_membership_set:remove(source.key)
-                    bucket_membership_set:add(destination_key)
+                    get_bucket_membership_set(configuration, source.index, band, bucket):swap(source.key, destination_key)
                 end
             end
         end
