@@ -278,17 +278,6 @@ local function redis_hash_response_iterator(response)
     end
 end
 
-local function redis_hgetall_response_to_table(response, value_type)
-    if value_type == nil then
-        value_type = identity
-    end
-    local result = {}
-    for key, value in redis_hash_response_iterator(response) do
-        result[key] = value_type(value)
-    end
-    return result
-end
-
 
 -- Key Generation
 
