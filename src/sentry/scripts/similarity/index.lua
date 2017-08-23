@@ -498,11 +498,30 @@ local function fetch_candidates(configuration, index, threshold, frequencies, li
         end
     end
 
-    if count > limit then
-        error('hit limit')
+    if count <= limit then
+        return results
     end
 
-    return results
+    table.sort(
+        results,
+        function (this, that)
+            -- Sort the items by which has the most hits.
+            if this[2] > that[2] then
+                return true
+            elseif this[2] < that[2] then
+                return false
+            else
+                return this[1] < that[1]  -- NOTE: reverse lex sort
+            end
+        end
+    )
+
+    local trimmed = {}
+    for i = 1, limit do
+        trimmed[i] = results[i]
+    end
+
+    return trimmed
 end
 
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
