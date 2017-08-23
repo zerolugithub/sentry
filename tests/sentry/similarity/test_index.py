@@ -57,6 +57,12 @@ class MinHashIndexTestCase(TestCase):
         assert results[0] == ('1', 1.0)
         assert results[1] == ('2', 1.0)  # identical contents
 
+        # comparison, candidate limit
+        results = self.index.compare('example', '1', [('index', 0)], candidate_limit=2)[0]
+        assert len(results) == 2
+        assert results[0] == ('1', 1.0)
+        assert results[1] == ('2', 1.0)  # identical contents
+
         # classification, without thresholding
         results = self.index.classify('example', [('index', 0, 'hello world')])[0]
         assert results[0:2] == [('1', 1.0), ('2', 1.0)]
@@ -74,6 +80,12 @@ class MinHashIndexTestCase(TestCase):
 
         # classification, high threshold (exact match)
         results = self.index.classify('example', [('index', self.index.bands, 'hello world')])[0]
+        assert len(results) == 2
+        assert results[0] == ('1', 1.0)
+        assert results[1] == ('2', 1.0)  # identical contents
+
+        # classification, candidate limit
+        results = self.index.classify('example', [('index', 0, 'hello world')], candidate_limit=2)[0]
         assert len(results) == 2
         assert results[0] == ('1', 1.0)
         assert results[1] == ('2', 1.0)  # identical contents
