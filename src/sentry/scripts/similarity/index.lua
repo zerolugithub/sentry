@@ -493,13 +493,9 @@ local function fetch_candidates(configuration, index, threshold, frequencies, li
             hits = hits + 1
         end
         if hits >= threshold then
-            results[candidate] = hits
             count = count + 1
+            results[count] = {candidate, hits}
         end
-    end
-
-    if count > limit then
-        error('hit limit')
     end
 
     return results
@@ -556,7 +552,8 @@ local function fetch_similar(configuration, index, threshold, item_frequencies, 
     ]]--
     local candidates = fetch_candidates(configuration, index, threshold, item_frequencies, candidate_limit)
     local candidate_frequencies = {}
-    for candidate_key, _ in pairs(candidates) do
+    for rank, item in ipairs(candidates) do
+        local candidate_key, hits = unpack(item)
         candidate_frequencies[candidate_key] = get_frequencies(
             configuration,
             index,
