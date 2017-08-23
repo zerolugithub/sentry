@@ -401,7 +401,8 @@ const ProjectFilters = React.createClass({
     'legacy_browsers',
     'localhost',
     'web_crawlers',
-    'invalid_csp'
+    'invalid_csp',
+    'cors'
   ],
 
   formatData(rawData) {
