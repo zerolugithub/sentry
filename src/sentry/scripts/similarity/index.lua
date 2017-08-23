@@ -37,14 +37,6 @@ local function identity(...)
     return ...
 end
 
-local function range(start, stop)
-    local result = {}
-    for i = start, stop do
-        table.insert(result, i)
-    end
-    return result
-end
-
 function table.imap(t, f)
     local result = {}
     for i, value in ipairs(t) do
@@ -266,15 +258,6 @@ end
 
 
 -- Time Series
-
-local function get_active_indices(interval, retention, timestamp)
-    local result = {}
-    local upper = math.floor(timestamp / interval)
-    for i = upper - retention, upper do
-        table.insert(result, i)
-    end
-    return result
-end
 
 local function get_index_expiration_time(interval, retention, index)
     return (
@@ -775,13 +758,6 @@ local commands = {
                 {'key', argument_parser(validate_value)},
             })
         )(cursor, arguments)
-
-        local bands = range(1, configuration.bands)
-        local time_series = get_active_indices(
-            configuration.interval,
-            configuration.retention,
-            configuration.timestamp
-        )
 
         return table.imap(
             entries,
