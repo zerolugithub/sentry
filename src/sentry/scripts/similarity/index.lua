@@ -763,15 +763,7 @@ local commands = {
             entries,
             function (source)
                 -- TODO: Preserve the TTL here?
-                local frequencies = get_frequencies(configuration, source.index, source.key)
-                local result = {}
-                for band, buckets in ipairs(frequencies) do
-                    result[band] = {}
-                    for bucket, count in pairs(buckets) do
-                        result[band][bucket] = count
-                    end
-                end
-                return cmsgpack.pack(result)
+                return cmsgpack.pack(get_frequencies(configuration, source.index, source.key))
             end
         )
     end,
