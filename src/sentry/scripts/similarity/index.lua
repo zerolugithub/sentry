@@ -537,7 +537,15 @@ local function search(configuration, parameters, candidate_limit)
         table.sort(
             candidates,
             function (this, that)
-                return avg(this[2]) > avg(that[2])
+                local this_scores = avg(this[2])
+                local that_scores = avg(that[2])
+                if this_scores > that_scores then
+                    return true
+                elseif that_scores > this_scores then
+                    return false
+                else
+                    return this[1] < that[1]  -- NOTE: reverse lex
+                end
             end
         )
         candidates = table.trim(candidates, candidate_limit)
