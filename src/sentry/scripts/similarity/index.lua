@@ -37,6 +37,20 @@ local function identity(...)
     return ...
 end
 
+local function sum(t)
+    return table.ireduce(
+        t,
+        function (total, value)
+            return total + value
+        end,
+        0
+    )
+end
+
+local function avg(t)
+    return sum(t) / #t
+end
+
 function table.count(t)
     -- Shitty O(N) table size implementation
     local n = 0
@@ -517,16 +531,6 @@ local function search(configuration, parameters, candidate_limit)
     for candidate, index_hits in pairs(possible_candidates) do
         candidates[i] = {candidate, index_hits}
         i = i + 1
-    end
-
-    local avg = function (t)
-        return table.ireduce(
-            t,
-            function (total, value)
-                return total + value
-            end,
-            0
-        ) / #t
     end
 
     if #candidates > candidate_limit then
