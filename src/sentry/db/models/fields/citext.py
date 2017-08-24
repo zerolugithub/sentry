@@ -17,7 +17,7 @@ __all__ = ('CITextField', 'CICharField', 'CIEmailField')
 
 
 class CIText(object):
-    def get_db_type(self, connection):
+    def db_type(self, connection):
         engine = connection.settings_dict['ENGINE']
         if 'postgres' in engine:
             return 'citext'
