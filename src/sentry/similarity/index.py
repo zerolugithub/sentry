@@ -36,6 +36,16 @@ class MinHashIndex(object):
     def _get_connection(self, scope):
         return self.cluster.get_local_client_for_key(scope)
 
+    def _as_search_result(self, indices, result):
+        return sorted(
+            map(
+                lambda (key, scores): (key, map(float, scores)),
+                result,
+            ),
+            key=lambda (key, scores): sum(scores) / len(scores),
+            reverse=True,
+        )
+
     def classify(self, scope, items, candidate_limit=250, timestamp=None):
         if timestamp is None:
             timestamp = int(time.time())
@@ -55,14 +65,10 @@ class MinHashIndex(object):
             arguments.extend([idx, threshold])
             arguments.extend(self._build_signature_arguments(features))
 
-        return [
-            [(item, float(score)) for item, score in result]
-            for result in index(
-                self._get_connection(scope),
-                [],
-                arguments,
-            )
-        ]
+        return self._as_search_result(
+            [idx for idx, threshold, features in items],
+            index(self._get_connection(scope), [], arguments),
+        )
 
     def compare(self, scope, key, items, candidate_limit=250, timestamp=None):
         if timestamp is None:
@@ -83,14 +89,10 @@ class MinHashIndex(object):
         for idx, threshold in items:
             arguments.extend([idx, threshold])
 
-        return [
-            [(item, float(score)) for item, score in result]
-            for result in index(
-                self._get_connection(scope),
-                [],
-                arguments,
-            )
-        ]
+        return self._as_search_result(
+            [idx for idx, threshold in items],
+            index(self._get_connection(scope), [], arguments),
+        )
 
     def record(self, scope, key, items, timestamp=None):
         if not items:
