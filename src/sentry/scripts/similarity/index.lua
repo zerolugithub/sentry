@@ -444,37 +444,6 @@ local function fetch_candidates(configuration, index, threshold, frequencies, li
 
     Results are returned as table where the keys represent candidate keys.
     ]]--
-    local candidates = {}
-    for band, buckets in ipairs(frequencies) do
-        for bucket in pairs(buckets) do
-            -- Fetch all other items that have been added to
-            -- the same bucket in this band during this time
-            -- period.
-            local members = get_bucket_membership_set(configuration, index, band, bucket):members()
-            for member in pairs(members) do
-                local bands = candidates[member]
-                if bands == nil then
-                    bands = {}  -- acts as a set
-                    candidates[member] = bands
-                end
-                bands[band] = true
-            end
-        end
-    end
-
-    local count = 0
-    local results = {}
-    for candidate, bands in pairs(candidates) do
-        local hits = 0
-        for _ in pairs(bands) do
-            hits = hits + 1
-        end
-        if hits >= threshold then
-            count = count + 1
-            results[count] = {candidate, hits}
-        end
-    end
-
     if count <= limit then
         return results
     end
@@ -502,46 +471,32 @@ local function fetch_candidates(configuration, index, threshold, frequencies, li
 end
 
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
-    --[[
-    Calculate the similarity between an item's frequency and an array-like
-    table of candidate frequencies. This returns a table of candidate keys to
-    and [0, 1] scores where 0 is totally dissimilar and 1 is exactly similar.
-    ]]--
-    local results = {}
-    for key, value in pairs(candidate_frequencies) do
-        table.insert(
-            results,
-            {
-                key,
-                table.ireduce(  -- sum, then avg
-                    table.imap(  -- calculate similarity
-                        table.izip(
-                            item_frequencies,
-                            value
-                        ),
-                        function (v)
-                            -- We calculate the "similarity" between two items
-                            -- by comparing how often their contents exist in
-                            -- the same buckets for a band.
-                            local dist = get_manhattan_distance(
-                                scale_to_total(v[1]),
-                                scale_to_total(v[2])
-                            )
-                            -- Since this is a measure of similarity (and not
-                            -- distance) we normalize the result to [0, 1]
-                            -- scale.
-                            return 1 - (dist / 2)
-                        end
-                    ),
-                    function (total, item)
-                        return total + item
-                    end,
-                    0
-                ) / configuration.bands
-            }
-        )
-    end
-    return results
+    -- TODO: This could probably be rewritten at this point
+    return table.ireduce(  -- sum, then avg
+        table.imap(  -- calculate similarity
+            table.izip(
+                item_frequencies,
+                candidate_frequencies
+            ),
+            function (v)
+                -- We calculate the "similarity" between two items
+                -- by comparing how often their contents exist in
+                -- the same buckets for a band.
+                local dist = get_manhattan_distance(
+                    scale_to_total(v[1]),
+                    scale_to_total(v[2])
+                )
+                -- Since this is a measure of similarity (and not
+                -- distance) we normalize the result to [0, 1]
+                -- scale.
+                return 1 - (dist / 2)
+            end
+        ),
+        function (total, item)
+            return total + item
+        end,
+        0
+    ) / configuration.bands
 end
 
 local function fetch_similar(configuration, index, threshold, item_frequencies, candidate_limit)
@@ -566,6 +521,80 @@ local function fetch_similar(configuration, index, threshold, item_frequencies, 
         item_frequencies,
         candidate_frequencies
     )
+end
+
+local function fetch_candidates(configuration, index, frequencies)
+    local candidates = default_table(
+        function ()
+            return {}
+        end
+    )
+
+    for band, buckets in ipairs(frequencies) do
+        for bucket in pairs(buckets) do
+            -- Fetch all other items that have been added to
+            -- the same bucket in this band during this time
+            -- period.
+            local members = get_bucket_membership_set(configuration, index, band, bucket):members()
+            for member in pairs(members) do
+                candidates[member][band] = true
+            end
+        end
+    end
+
+    local results = {}
+    for candidate, bands in pairs(candidates) do
+        local hits = 0
+        for _ in pairs(bands) do
+            hits = hits + 1
+        end
+        results[candidate] = hits
+    end
+    return results
+end
+
+local function count(t)
+    local n = 0
+    for k in pairs(t) do
+        n = n + 1
+    end
+    return n
+end
+
+local function search(configuration, parameters, candidate_limit)
+    local candidates = default_table(
+        function ()
+            return {}
+        end
+    )
+
+    for _, p in ipairs(parameters) do
+        for candidate, hits in pairs(fetch_candidates(configuration, p.index, p.frequencies)) do
+            candidates[candidate][p.index] = hits
+        end
+    end
+
+    if count(candidates) > candidate_limit then
+        error('hit limit')  -- TODO
+    end
+
+    local i = 1
+    local results = {}
+    for candidate in pairs(candidates) do
+        local result = {}
+        for j, p in ipairs(parameters) do
+            local candidate_frequencies = get_frequencies(configuration, p.index, candidate)
+            -- TODO: differentiate when both sides are empty
+            result[j] = string.format('%f', calculate_similarity(
+                configuration,
+                p.frequencies,
+                candidate_frequencies
+            ))
+        end
+        results[i] = {candidate, result}
+        i = i + 1
+    end
+    return results
 end
 
 
@@ -622,7 +651,7 @@ local commands = {
         )
     end,
     CLASSIFY = function (configuration, cursor, arguments)
-        local cursor, candidate_limit, signatures = multiple_argument_parser(
+        local cursor, candidate_limit, parameters = multiple_argument_parser(
             argument_parser(validate_integer),
             variadic_argument_parser(
                 object_argument_parser({
@@ -633,22 +662,14 @@ local commands = {
             )
         )(cursor, arguments)
 
-        return table.imap(
-            signatures,
-            function (signature)
-                local results = fetch_similar(
-                    configuration,
-                    signature.index,
-                    signature.threshold,
-                    signature.frequencies,
-                    candidate_limit
-                )
-                return as_search_response(results)
-            end
+        return search(
+            configuration,
+            parameters,
+            candidate_limit
         )
     end,
     COMPARE = function (configuration, cursor, arguments)
-        local cursor, candidate_limit, item_key, indices = multiple_argument_parser(
+        local cursor, candidate_limit, item_key, parameters = multiple_argument_parser(
             argument_parser(validate_integer),
             argument_parser(validate_value),
             variadic_argument_parser(
@@ -659,22 +680,18 @@ local commands = {
             )
         )(cursor, arguments)
 
-        return table.imap(
-            indices,
-            function (index)
-                local results = fetch_similar(
-                    configuration,
-                    index.index,
-                    index.threshold,
-                    get_frequencies(
-                        configuration,
-                        index.index,
-                        item_key
-                    ),
-                    candidate_limit
-                )
-                return as_search_response(results)
-            end
+        for i, parameter in ipairs(parameters) do
+            parameter.frequencies = get_frequencies(
+                configuration,
+                parameter.index,
+                item_key
+            )
+        end
+
+        return search(
+            configuration,
+            parameters,
+            candidate_limit
         )
     end,
     MERGE = function (configuration, cursor, arguments)
