@@ -37,14 +37,15 @@ local function identity(...)
     return ...
 end
 
-local function default_table(default)
-    return setmetatable({}, {
-        __index = function (table, key)
-            local value = default(key)
-            table[key] = value
-            return value
-        end,
-    })
+function table.get_or_set_default(t, k, f)
+    local v = t[k]
+    if v ~= nil then
+        return v
+    else
+        v = f(k)
+        t[k] = v
+        return v
+    end
 end
 
 function table.imap(t, f)
@@ -456,12 +457,11 @@ local function calculate_similarity(configuration, item_frequencies, candidate_f
 end
 
 local function fetch_candidates(configuration, index, frequencies)
-    local candidates = default_table(
-        function ()
-            return {}
-        end
-    )
+    local create_table = function ()
+        return {}
+    end
 
+    local candidates = {}
     for band, buckets in ipairs(frequencies) do
         for bucket in pairs(buckets) do
             -- Fetch all other items that have been added to
@@ -469,7 +469,7 @@ local function fetch_candidates(configuration, index, frequencies)
             -- period.
             local members = get_bucket_membership_set(configuration, index, band, bucket):members()
             for member in pairs(members) do
-                candidates[member][band] = true
+                table.get_or_set_default(candidates, member, create_table)[band] = true
             end
         end
     end
@@ -494,15 +494,14 @@ local function count(t)
 end
 
 local function search(configuration, parameters, candidate_limit)
-    local candidates = default_table(
-        function ()
-            return {}
-        end
-    )
+    local candidates = {}
+    local create_table = function ()
+        return {}
+    end
 
     for _, p in ipairs(parameters) do
         for candidate, hits in pairs(fetch_candidates(configuration, p.index, p.frequencies)) do
-            candidates[candidate][p.index] = hits
+            table.get_or_set_default(candidates, candidate, create_table)[p.index] = hits
         end
     end
 
