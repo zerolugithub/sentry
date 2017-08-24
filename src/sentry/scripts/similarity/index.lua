@@ -46,6 +46,14 @@ function table.count(t)
     return n
 end
 
+function table.trim(t, n)
+    local result = {}
+    for i = 1, n do
+        result[i] = t[i]
+    end
+    return result
+end
+
 function table.get_or_set_default(t, k, f)
     local v = t[k]
     if v ~= nil then
@@ -491,7 +499,7 @@ local function fetch_candidates(configuration, index, frequencies)
 end
 
 local function search(configuration, parameters, candidate_limit)
-    local candidates = {}
+    local possible_candidates = {}
     local create_table = function ()
         return {}
     end
@@ -499,19 +507,43 @@ local function search(configuration, parameters, candidate_limit)
     for i, p in ipairs(parameters) do
         for candidate, hits in pairs(fetch_candidates(configuration, p.index, p.frequencies)) do
             if hits >= p.threshold then
-                table.get_or_set_default(candidates, candidate, create_table)[i] = hits
+                table.get_or_set_default(possible_candidates, candidate, create_table)[i] = hits
             end
         end
     end
 
-    if table.count(candidates) > candidate_limit then
-        error('hit limit')  -- TODO
+    local candidates = {}
+    local i = 1
+    for candidate, index_hits in pairs(possible_candidates) do
+        candidates[i] = {candidate, index_hits}
+        i = i + 1
+    end
+
+    local avg = function (t)
+        return table.ireduce(
+            t,
+            function (total, value)
+                return total + value
+            end,
+            0
+        ) / #t
+    end
+
+    if #candidates > candidate_limit then
+        table.sort(
+            candidates,
+            function (this, that)
+                return avg(this[2]) > avg(that[2])
+            end
+        )
+        candidates = table.trim(candidates, candidate_limit)
     end
 
     local i = 1
     local results = {}
-    for candidate in pairs(candidates) do
+    for _, value in ipairs(candidates) do
         local result = {}
+        local candidate = value[1]
         for j, p in ipairs(parameters) do
             local candidate_frequencies = get_frequencies(configuration, p.index, candidate)
             -- TODO: differentiate when both sides are empty
