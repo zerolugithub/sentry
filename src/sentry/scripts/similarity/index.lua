@@ -496,9 +496,11 @@ local function search(configuration, parameters, candidate_limit)
         return {}
     end
 
-    for _, p in ipairs(parameters) do
+    for i, p in ipairs(parameters) do
         for candidate, hits in pairs(fetch_candidates(configuration, p.index, p.frequencies)) do
-            table.get_or_set_default(candidates, candidate, create_table)[p.index] = hits
+            if hits >= p.threshold then
+                table.get_or_set_default(candidates, candidate, create_table)[i] = hits
+            end
         end
     end
 
