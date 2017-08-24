@@ -455,30 +455,6 @@ local function calculate_similarity(configuration, item_frequencies, candidate_f
     ) / configuration.bands
 end
 
-local function fetch_similar(configuration, index, threshold, item_frequencies, candidate_limit)
-    --[[
-    Fetch the items that are similar to an item's frequencies (as returned by
-    `get_frequencies`), returning a table of similar items keyed by
-    the candidate key where the value is on a [0, 1] similarity scale.
-    ]]--
-    local candidates = fetch_candidates(configuration, index, threshold, item_frequencies, candidate_limit)
-    local candidate_frequencies = {}
-    for rank, item in ipairs(candidates) do
-        local candidate_key, hits = unpack(item)
-        candidate_frequencies[candidate_key] = get_frequencies(
-            configuration,
-            index,
-            candidate_key
-        )
-    end
-
-    return calculate_similarity(
-        configuration,
-        item_frequencies,
-        candidate_frequencies
-    )
-end
-
 local function fetch_candidates(configuration, index, frequencies)
     local candidates = default_table(
         function ()
