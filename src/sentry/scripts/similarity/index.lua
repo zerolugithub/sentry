@@ -37,6 +37,15 @@ local function identity(...)
     return ...
 end
 
+function table.count(t)
+    -- Shitty O(N) table size implementation
+    local n = 0
+    for k in pairs(t) do
+        n = n + 1
+    end
+    return n
+end
+
 function table.get_or_set_default(t, k, f)
     local v = t[k]
     if v ~= nil then
@@ -476,21 +485,9 @@ local function fetch_candidates(configuration, index, frequencies)
 
     local results = {}
     for candidate, bands in pairs(candidates) do
-        local hits = 0
-        for _ in pairs(bands) do
-            hits = hits + 1
-        end
-        results[candidate] = hits
+        results[candidate] = table.count(bands)
     end
     return results
-end
-
-local function count(t)
-    local n = 0
-    for k in pairs(t) do
-        n = n + 1
-    end
-    return n
 end
 
 local function search(configuration, parameters, candidate_limit)
@@ -505,7 +502,7 @@ local function search(configuration, parameters, candidate_limit)
         end
     end
 
-    if count(candidates) > candidate_limit then
+    if table.count(candidates) > candidate_limit then
         error('hit limit')  -- TODO
     end
 
