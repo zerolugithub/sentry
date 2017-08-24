@@ -37,6 +37,16 @@ local function identity(...)
     return ...
 end
 
+local function default_table(default)
+    return setmetatable({}, {
+        __index = function (table, key)
+            local value = default(key)
+            table[key] = value
+            return value
+        end,
+    })
+end
+
 function table.imap(t, f)
     local result = {}
     for i, value in ipairs(t) do
