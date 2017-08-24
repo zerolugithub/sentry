@@ -530,32 +530,6 @@ local function search(configuration, parameters, candidate_limit)
 end
 
 
--- Command Utilities
-
-local function as_search_response(results)
-    -- Sort the results in descending order (most similar first.)
-    table.sort(
-        results,
-        function (left, right)
-            return left[2] > right[2]
-        end
-    )
-
-    return table.imap(
-        results,
-        function (item)
-            return {
-                item[1],
-                string.format(
-                    '%f',  -- converting floats to strings avoids truncation
-                    item[2]
-                ),
-            }
-        end
-    )
-end
-
-
 -- Command Parsing
 
 local commands = {
