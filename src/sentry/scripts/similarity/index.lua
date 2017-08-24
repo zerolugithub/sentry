@@ -426,50 +426,6 @@ local function clear_frequencies(configuration, index, item)
     redis.call('DEL', key)
 end
 
-local function fetch_candidates(configuration, index, threshold, frequencies, limit)
-    --[[
-    Fetch all possible keys that share some characteristics with the provided
-    frequencies. The frequencies should be structured as an array-like table,
-    with one table for each band that represents the number of times that
-    bucket has been associated with the target object. (This is also the output
-    structure of `get_frequencies`.) For example, a four-band request with two
-    recorded observations may be strucured like this:
-
-    {
-        {a=1, b=1},
-        {a=2},
-        {b=2},
-        {a=1, d=1},
-    }
-
-    Results are returned as table where the keys represent candidate keys.
-    ]]--
-    if count <= limit then
-        return results
-    end
-
-    table.sort(
-        results,
-        function (this, that)
-            -- Sort the items by which has the most hits.
-            if this[2] > that[2] then
-                return true
-            elseif this[2] < that[2] then
-                return false
-            else
-                return this[1] < that[1]  -- NOTE: reverse lex sort
-            end
-        end
-    )
-
-    local trimmed = {}
-    for i = 1, limit do
-        trimmed[i] = results[i]
-    end
-
-    return trimmed
-end
-
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
     -- TODO: This could probably be rewritten at this point
     return table.ireduce(  -- sum, then avg
