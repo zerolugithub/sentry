@@ -216,10 +216,10 @@ class MinHashIndexTestCase(TestCase):
             ('index:a', 0),
             ('index:b', 0),
         ]) == [
+            ('4', [1.0, None]),
             ('1', [1.0, None]),
             ('2', [1.0, None]),
             ('3', [1.0, None]),
-            ('4', [1.0, None]),
         ]
 
     def test_merge(self):
