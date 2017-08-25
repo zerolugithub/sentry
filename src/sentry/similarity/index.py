@@ -37,13 +37,27 @@ class MinHashIndex(object):
         return self.cluster.get_local_client_for_key(scope)
 
     def _as_search_result(self, indices, result):
+        def convert(value):
+            value = float(value)
+            if value == -1:
+                return None
+            else:
+                return value
+
         return sorted(
             map(
-                lambda (key, scores): (key, map(float, scores)),
+                lambda (key, scores): (key, map(convert, scores)),
                 result,
             ),
-            key=lambda (key, scores): sum(scores) / len(scores),
-            reverse=True,
+            key=lambda (key, scores): (
+                sum(
+                    filter(
+                        lambda score: score is not None,
+                        scores,
+                    )
+                ) / len(scores) * -1,
+                key,
+            )
         )
 
     def classify(self, scope, items, candidate_limit=250, timestamp=None):

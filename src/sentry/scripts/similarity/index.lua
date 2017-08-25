@@ -458,8 +458,19 @@ local function clear_frequencies(configuration, index, item)
     redis.call('DEL', key)
 end
 
+local function is_empty(frequencies)
+    for _ in pairs(frequencies[1]) do
+        return false
+    end
+    return true
+end
+
 local function calculate_similarity(configuration, item_frequencies, candidate_frequencies)
     -- TODO: This could probably be rewritten at this point
+    if is_empty(item_frequencies) or is_empty(candidate_frequencies) then
+        return -1
+    end
+
     return table.ireduce(  -- sum, then avg
         table.imap(  -- calculate similarity
             table.izip(
