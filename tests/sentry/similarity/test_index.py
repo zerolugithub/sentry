@@ -168,6 +168,27 @@ class MinHashIndexTestCase(TestCase):
         assert results[3] == ('4', [1.0, None])
         assert results[4] == ('5', [None, 1.0])
 
+        # classification, with thresholding (low)
+        results = self.index.classify('example', [
+            ('index:a', self.index.bands, 'pizza world'),   # no direct hits
+            ('index:b', 8, 'pizza world'),   # one direct hit
+        ])
+        assert len(results) == 1
+        assert results[0][0] == '3'
+        # this should have a value since it's similar even thought it was not
+        # considered as a candidate for this index
+        assert results[0][1][0] > 0
+        assert results[0][1][1] == 1.0
+
+        # classification, with thresholding (high)
+        results = self.index.classify('example', [
+            ('index:a', self.index.bands, 'pizza world'),   # no direct hits
+            ('index:b', self.index.bands, 'hello world'),   # 3 direct hits
+        ])
+        assert len(results) == 3
+        assert set(key for key, scores in results[:2]) == set(['1', '2'])
+        assert results[2][0] == '5'
+
         # classification, candidate limit (with lexicographical collision sort)
         results = self.index.classify('example', [
             ('index:a', 0, 'hello world'),
