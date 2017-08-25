@@ -186,7 +186,12 @@ class MinHashIndexTestCase(TestCase):
             ('index:b', self.index.bands, 'hello world'),   # 3 direct hits
         ])
         assert len(results) == 3
-        assert set(key for key, scores in results[:2]) == set(['1', '2'])
+        assert results[0][0] == '1'  # tie btw first 2 items is broken by lex sort
+        assert results[0][1][0] > 0
+        assert results[0][1][1] == 1.0
+        assert results[1][0] == '2'
+        assert results[1][1][0] > 0
+        assert results[1][1][1] == 1.0
         assert results[2] == ('5', [None, 1.0])
 
         # classification, candidate limit (with lexicographical collision sort)
