@@ -187,7 +187,7 @@ class MinHashIndexTestCase(TestCase):
         ])
         assert len(results) == 3
         assert set(key for key, scores in results[:2]) == set(['1', '2'])
-        assert results[2][0] == '5'
+        assert results[2] == ('5', [None, 1.0])
 
         # classification, candidate limit (with lexicographical collision sort)
         results = self.index.classify('example', [
