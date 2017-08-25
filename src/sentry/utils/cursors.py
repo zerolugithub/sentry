@@ -155,7 +155,7 @@ def build_cursor(results, key, limit=100, is_desc=False, cursor=None, hits=None,
         has_next = False
 
     # If the cursor contains previous results, the first item is the item that
-    # indicates if we have more items later, and is *not* the first item im the
+    # indicates if we have more items later, and is *not* the first item in the
     # list, that should be used for the value.
     first_prev_index = 1 if is_prev and has_prev else 0
 
