@@ -39,7 +39,7 @@ class MinHashIndex(object):
     def _as_search_result(self, indices, result):
         def convert(value):
             value = float(value)
-            if value == -1:
+            if value < 0:
                 return None
             else:
                 return value
