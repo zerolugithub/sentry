@@ -28,6 +28,9 @@ class MinHashIndex(object):
         self.retention = retention
 
     def _build_signature_arguments(self, features):
+        if not features:
+            return [0] * self.bands
+
         arguments = []
         for bucket in band(self.bands, self.signature_builder(features)):
             arguments.extend([1, ','.join(map('{}'.format, bucket)), 1])

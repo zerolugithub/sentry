@@ -208,6 +208,20 @@ class MinHashIndexTestCase(TestCase):
         assert results[2][1][0] == 1.0
         assert results[3] == ('4', [1.0, None])
 
+        # empty query
+        assert self.index.classify('example', [
+            ('index:a', 0, 'hello world'),
+            ('index:b', 0, ''),
+        ]) == self.index.compare('example', '4', [
+            ('index:a', 0),
+            ('index:b', 0),
+        ]) == [
+            ('1', [1.0, None]),
+            ('2', [1.0, None]),
+            ('3', [1.0, None]),
+            ('4', [1.0, None]),
+        ]
+
     def test_merge(self):
         self.index.record('example', '1', [('index', ['foo', 'bar'])])
         self.index.record('example', '2', [('index', ['baz'])])
